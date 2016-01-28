@@ -15,7 +15,7 @@ function! MW_AttachToMatlab(pid, mode)
 
     let rootDir = mw#utils#GetRootDir()
     if rootDir != ""
-        call gdb#gdb#RunCommand('source '.rootDir.'/.sbtools/.source-path-gdbinit')
+        call gdb#gdb#RunCommand('source '.rootDir.'/.sbtools/sb-debug/source-path.gdbinit')
     endif
 
     if a:mode == '-nojvm'
@@ -131,7 +131,7 @@ function! MW_DebugUnitTests(what)
 
     " This ensures that the debugger breaks in our local sandbox files and
     " not in /devel/Aslrtw/build etc.
-    call gdb#gdb#RunCommand('source '.sbrootDir.'/.sbtools/.source-path-gdbinit')
+    call gdb#gdb#RunCommand('source '.sbrootDir.'/.sbtools/sb-debug/source-path.gdbinit')
     
     call gdb#gdb#RunCommand("file ".testPath)
 
