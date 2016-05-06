@@ -60,17 +60,18 @@ if !has('gui_running')
     finish
 endif
 
-amenu &Mathworks.D&iff.With\ &perfect                               :DWithOther archive<CR>
-amenu &Mathworks.D&iff.With\ &sandbox                               :DWithOther<space> 
-amenu &Mathworks.D&iff.Using\ submit\ &file                         :DiffSubmitFile archive<CR>
-amenu &Mathworks.&Add\ current\ file\ to\ submit\ list              :!add.py %:p<CR>
+amenu &Mathworks.D&iff.With\ &Sandbox                               :DWithOther<space> 
+amenu &Mathworks.D&iff.With\ S&YncFrom                              :DWithOther archive<CR>
+amenu &Mathworks.D&iff.With\ &LKG                                   :DWithOther lkg<CR>
+" amenu &Mathworks.D&iff.Using\ submit\ &file                         :DiffSubmitFile archive<CR>
+" amenu &Mathworks.&Add\ current\ file\ to\ submit\ list              :!add.py %:p<CR>
 
 amenu &Mathworks.-sep1- <Nop>
 amenu &Mathworks.Add\ &header\ protection       :AddHeaderProtection<CR>
 
-amenu &Mathworks.-sep2- <Nop>
-amenu &Mathworks.&Tags.&Initialize\ tags                    :call mw#tag#InitVimTags()<CR>
-amenu &Mathworks.&Tags.Search\ through\ &Project\ tags      :call mw#tag#SelectTag(expand('%:p'))<CR>
+" amenu &Mathworks.-sep2- <Nop>
+" amenu &Mathworks.&Tags.&Initialize\ tags                    :call mw#tag#InitVimTags()<CR>
+" amenu &Mathworks.&Tags.Search\ through\ &Project\ tags      :call mw#tag#SelectTag(expand('%:p'))<CR>
 " amenu &Mathworks.&Tags.Search\ through\ &File\ tags         :call mw#tag#SelectTag(expand('%:p'))<CR>
 
 nmenu &Mathworks.&Find.In\ &Project                 :call mw#sbtools#FindInProj()<CR><C-R>=expand('<cword>')<CR>
@@ -85,7 +86,7 @@ amenu &Mathworks.&Compile\ Current\ Project     :call mw#sbtools#CompileProject(
 amenu &Mathworks.C&ompile\ Current\ File        :call mw#sbtools#CompileFile()<CR>
 amenu &Mathworks.&Set\ Compile\ Level.For\ &Project           :call mw#sbtools#SetCompileLevelForProject()<CR>
 amenu &Mathworks.&Set\ Compile\ Level.For\ &File              :call mw#sbtools#SetCompileLevelForFile()<CR>
-amenu &Mathworks.DAS\ B&uild                    :call mw#sbtools#BuildUsingDas()<CR>
+" amenu &Mathworks.DAS\ B&uild                    :call mw#sbtools#BuildUsingDas()<CR>
 
 amenu &Mathworks.-sep4- <Nop>
 amenu &Mathworks.Sa&ve\ Current\ Session        :call mw#sbtools#SaveSession()<CR>

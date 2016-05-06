@@ -29,7 +29,7 @@ class Finder(Thread):
         self.result = ''
 
     def run(self):
-        p1 = Popen([getToolPath('find'), self.path, '-name'] + self.pattern.split(), stdout=PIPE)
+        p1 = Popen(['find', self.path, '-name'] + self.pattern.split(), stdout=PIPE)
         p2 = Popen(['python', getScriptPath('findInFiles.py'), '-nH'] + sys.argv[1:], stdin=p1.stdout, stdout=PIPE)
         self.result = p2.communicate()[0]
 
