@@ -55,9 +55,5 @@ def getScriptPath(scriptName):
     (scriptDir, scriptPath) = path.split(sys.argv[0])
     return path.join(scriptDir, scriptName)
 
-def getToolPath(toolName):
-    (scriptDir, scriptPath) = path.split(sys.argv[0])
-    return path.join(scriptDir, sys.platform, toolName)
-
 if __name__ == "__main__":
     print getRelPathTo('cdr_transform_driver.cpp')

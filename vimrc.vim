@@ -1,3 +1,11 @@
+syntax on
+filetype plugin on
+
+" let g:GdbCmd = 'sb -no-debug-backing-stores -debug -gdb-switches --annotate=3 -gdb-switches --args'
+let $CTAGS_CMD = '/hub/share/sbtools/external-apps/exuberant-ctags/exuberant-ctags-5.9/exuberant-ctags/ctags'
+
+let g:Tlist_Ctags_Cmd = $CTAGS_CMD
+
 let rtp = expand('<sfile>:p:h')
 
 set shell=bash

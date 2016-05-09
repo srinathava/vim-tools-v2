@@ -1,11 +1,11 @@
 " ==============================================================================
 " Sandbox utility functions
 " ============================================================================== 
-" mw#utils#GetRootDir: gets the directory above this one where battree resides {{{
+" mw#utils#GetRootDir: gets the directory above this one where mw_anchor resides {{{
 function! mw#utils#GetRootDir()
-    let battreePath = findfile('battree', '.;')
-    if battreePath != ''
-        return fnamemodify(battreePath, ':p:h')
+    let mw_anchorPath = findfile('mw_anchor', '.;')
+    if mw_anchorPath != ''
+        return fnamemodify(mw_anchorPath, ':p:h')
     endif
 
     let projpath = findfile('.vimproj.xml', '.;')
@@ -33,7 +33,7 @@ endfunction " }}}
 " Description: understands things like "archive"
 function! mw#utils#NormalizeSandbox(sb)
     let sb = expand(a:sb)
-    if filereadable(sb.'/battree')
+    if filereadable(sb.'/mw_anchor')
         return sb
     end
     if sb == 'archive'
@@ -51,7 +51,7 @@ endfunction " }}}
 " mw#utils#IsInSandbox: Is this file in a sandbox {{{
 function! mw#utils#IsInSandbox(fileName)
     let bufferDir = fnamemodify(a:fileName, ':p:h')
-    let battreePath = findfile('battree', bufferDir . ';')
+    let battreePath = findfile('mw_anchor', bufferDir . ';')
     return battreePath != ""
 endfunction
 " }}}

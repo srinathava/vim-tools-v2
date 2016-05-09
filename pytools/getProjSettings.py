@@ -143,9 +143,9 @@ def getProjSettings():
     if projSpecFile:
         dom = xml.dom.minidom.parseString(open(projSpecFile).read())
         spec = handleSolution(dom)
-        battree = searchUpFor('battree')
-        if battree:
-            addModuleDependencies(spec.projects, path.dirname(battree))
+        mw_anchor = searchUpFor('mw_anchor')
+        if mw_anchor:
+            addModuleDependencies(spec.projects, path.dirname(mw_anchor))
 
         return spec
     else:

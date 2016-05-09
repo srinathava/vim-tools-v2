@@ -248,7 +248,7 @@ endfunction " }}}
 " Description: 
 function! s:CreateGdbMaps()
     call s:CreateMap('<C-c>',   ':call gdb#gdb#Interrupt()<CR>', 'n')
-    call s:CreateMap('<F5>',    ':call gdb#gdb#Continue()<CR>', 'n')
+    call s:CreateMap('<F5>',    ':call gdb#gdb#RunOrContinue()<CR>', 'n')
     call s:CreateMap('<S-F5>',  ':call gdb#gdb#Kill()<CR>', 'n')
     call s:CreateMap('<F6>',    ':call gdb#gdb#Kill()<CR>', 'n')
     call s:CreateMap('<F10>',   ':call gdb#gdb#Next()<CR>', 'n')

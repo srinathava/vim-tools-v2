@@ -69,10 +69,10 @@ amenu &Mathworks.D&iff.With\ &LKG                                   :DWithOther 
 amenu &Mathworks.-sep1- <Nop>
 amenu &Mathworks.Add\ &header\ protection       :AddHeaderProtection<CR>
 
-" amenu &Mathworks.-sep2- <Nop>
-" amenu &Mathworks.&Tags.&Initialize\ tags                    :call mw#tag#InitVimTags()<CR>
-" amenu &Mathworks.&Tags.Search\ through\ &Project\ tags      :call mw#tag#SelectTag(expand('%:p'))<CR>
-" amenu &Mathworks.&Tags.Search\ through\ &File\ tags         :call mw#tag#SelectTag(expand('%:p'))<CR>
+amenu &Mathworks.-sep2- <Nop>
+amenu &Mathworks.&Tags.&Initialize\ tags                    :call mw#tag#InitVimTags()<CR>
+amenu &Mathworks.&Tags.Search\ through\ &Project\ tags      :call mw#tag#SelectTag(expand('%:p'))<CR>
+amenu &Mathworks.&Tags.Search\ through\ &File\ tags         :call mw#tag#SelectTag(expand('%:p'))<CR>
 
 nmenu &Mathworks.&Find.In\ &Project                 :call mw#sbtools#FindInProj()<CR><C-R>=expand('<cword>')<CR>
 nmenu &Mathworks.&Find.In\ &Solution                :call mw#sbtools#FindInSolution()<CR><C-R>=expand('<cword>')<CR>

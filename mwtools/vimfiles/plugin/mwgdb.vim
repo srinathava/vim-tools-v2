@@ -107,13 +107,13 @@ function! MW_DebugUnitTests(what)
     if len(testFiles) > 1
         let choices = ['Multiple '.a:what.' tests found. Please select one: ']
         for idx in range(len(testFiles))
-            call add(choices, idx.'. '.fnamemodify(testFiles[idx], ':t'))
+            call add(choices, (idx+1).'. '.fnamemodify(testFiles[idx], ':t'))
         endfor
         let choice = inputlist(choices)
         if choice <= 0
             return
         endif
-        let testPath = testFiles[choice]
+        let testPath = testFiles[choice-1]
     elseif len(testFiles) == 1
         let testPath = testFiles[0]
     else

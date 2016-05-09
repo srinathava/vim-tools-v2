@@ -3,7 +3,7 @@ function! mw#addHeaderProtection#DoIt()
     let fname = expand('%:t:r')
     let dir = expand('%:p:h:t')
 
-    let comment = '_'.dir.'_'.fname.'_h_'
-    call append(0, ["#ifndef ".comment, "#define ".comment, "", "#ifdef SUPPORTS_PRAGMA_ONCE", "#pragma once", "#endif", ""])
-    call append(line('$'), ["", "#endif // ".comment, ""])
+    call append(0, '#pragma once')
+    let year = strftime('%Y')
+    call append(0, '/* Copyright '.year.' The MathWorks, Inc. */')
 endfunction " }}}

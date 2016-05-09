@@ -24,11 +24,10 @@ os.chdir(dir)
 
 pat = " -o ".join(["-name %s " % p for p in pat.split()])
 
-find = getToolPath('find')
-ctags = getToolPath('ctags')
+ctags = os.environ['CTAGS_CMD']
 ctags_config = getScriptPath('ctags.cnf')
 
-p1cmd = [find] + pat.split()
+p1cmd = ['find'] + pat.split()
 p1 = Popen(p1cmd, stdout=PIPE)
 p2cmd = [ctags] + args + ['--options=%s' % ctags_config,
             '--fields=+iaS', '--extra=+q', '-L', '-']
