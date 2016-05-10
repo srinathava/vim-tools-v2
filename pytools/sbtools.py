@@ -6,7 +6,7 @@ import sys
 
 def getRootDir():
     dir = os.getcwd()
-    while ( (not path.exists('%s/battree' % dir)) and
+    while ( (not path.exists('%s/mw_anchor' % dir)) and
             (not path.exists('%s/.vimproj.xml' % dir)) ):
         (dir, child) = path.split(dir)
         if not child:

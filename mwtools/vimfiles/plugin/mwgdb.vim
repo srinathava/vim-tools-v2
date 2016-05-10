@@ -95,7 +95,7 @@ function! MW_DebugUnitTests(what)
 
     let sbrootDir = mw#utils#GetRootDir()
 
-    " This is the directory where 'battree' is found
+    " This is the directory where 'mw_anchor' is found
     let mlroot = sbrootDir.'/matlab'
 
     let projRelPathToMlRoot = strpart(projDir, len(mlroot) + 1)
