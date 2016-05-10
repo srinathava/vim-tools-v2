@@ -80,4 +80,22 @@ function! mw#utils#RestoreSettings()
     endfor
 endfunction " }}}
 
+" ChooseFromList:  {{{
+" Description: 
+function! mw#utils#ChooseFromList(origList, prefix)
+    let idx = 1
+    let choices = [a:prefix]
+    for item in a:origList
+        let choices = add(choices, (idx).': '.item)
+        let idx += 1
+    endfor
+    let idxChoice = inputlist(choices)
+    if idxChoice <= 0
+        return ''
+    else
+        return a:origList[idxChoice - 1]
+    end
+endfunction " }}}
+
+
 " vim: fdm=marker

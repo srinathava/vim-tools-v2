@@ -35,3 +35,7 @@ if !has('unix')
 endif
 
 exec 'set rtp+='.rtp.'/gdb/vimfiles'
+
+" Handy map for bufexplorer.
+map <F3> <Plug>StartBufExplorer
+map <S-F3> <Plug>SplitBufExplorer

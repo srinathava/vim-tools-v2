@@ -1,0 +1,8 @@
+<solution>
+    <project name="app">
+        <include path="mwtools" pattern="*.vim *.py" />
+        <include path="gdb" pattern="*.vim *.py" />
+        <include path="pytools" pattern="*.py *.cnf" />
+    </project>
+</solution>
+
