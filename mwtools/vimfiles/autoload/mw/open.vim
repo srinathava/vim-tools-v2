@@ -19,6 +19,7 @@ function! s:FilterList()
         let pattern = substitute(pattern, '/', '\/', 'g')
 
         exec 'silent! 2,$ v/'.pattern.'/d_'
+        call histdel('search', -1) " do not pollute search history
 
         if search('^>', 'n') == 0
             call setline(2, substitute(getline(2), '^\s', '>', ''))
@@ -26,6 +27,7 @@ function! s:FilterList()
     endif
 
     call setpos('.', curpos)
+
     let @/ = origPat
     return ''
 endfunction " }}}
@@ -138,11 +140,18 @@ function! mw#open#OpenFile()
     call setbufvar(bufnum, '&ts', 8)
 
     let filelist = system('listFiles.py')
+
+    let origPat = @/
     silent! 0put=filelist
+
     silent! %s/^/    /g
+    call histdel('search', -1)
 
     exec 'silent! %s/'.escape(prefix, '/').'//'
+    call histdel('search', -1)
+
     let b:textToAdd = prefix
 
     call mw#open#StartFiltering()
+    let @/ = origPat
 endfunction " }}}
