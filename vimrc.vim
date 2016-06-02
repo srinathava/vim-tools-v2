@@ -51,8 +51,8 @@ else
     let $PATH .= ';'.pytoolspath.'/selecttag'
 endif
 
-exec 'set rtp+='.rtp.'/mwtools/vimfiles'
-exec 'set rtp+='.rtp.'/mwtools/vimfiles/after'
+exec 'set rtp^='.rtp.'/mwtools/vimfiles'
+exec 'set rtp^='.rtp.'/mwtools/vimfiles/after'
 
 if has('unix')
     exec 'set rtp+='.rtp.'/gdb/vimfiles'
