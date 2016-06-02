@@ -35,6 +35,11 @@ augroup AddFilesToPerforce
     au BufWritePost * call mw#perforce#AddFileToPerforce(expand('<afile>:p'))
 augroup END
 
+augroup AddSandboxTags
+    au!
+    au BufReadPost * call mw#tag#AddSandboxTags(expand('<afile>:p'))
+augroup END
+
 " Update tags in background after every write for the current project.
 augroup MWRefreshProjectTags
     au!
