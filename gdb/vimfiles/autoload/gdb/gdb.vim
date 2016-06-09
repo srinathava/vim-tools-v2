@@ -490,10 +490,8 @@ endfunction " }}}
 function! gdb#gdb#RunOrResume(arg)
     if a:arg =~ '^start$'
         call gdb#gdb#Init()
-    elseif a:arg =~ '^\(r\%[un]\|re\%[turn]\|co\%[ntinue]\|fi\%[nish]\|st\%[epi]\|ne\%[xti]\)\>'
-        call gdb#gdb#ResumeProgram(a:arg)
     else
-        call gdb#gdb#RunCommand(a:arg)
+        call gdb#gdb#ResumeProgram(a:arg)
     endif
 endfunction " }}}
 " gdb#gdb#SetQueryAnswer: sets an answer for future queries {{{
