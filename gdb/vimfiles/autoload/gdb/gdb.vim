@@ -490,6 +490,8 @@ endfunction " }}}
 function! gdb#gdb#RunOrResume(arg)
     if a:arg =~ '^start$'
         call gdb#gdb#Init()
+    elseif a:arg =~ '^\(comm\%[ands]\|p\%[rint]\|disp\%[lay]\|en\%[able]\|dis\%[able]\|pps\|d\%[elete]\|attach\)\>'
+        call gdb#gdb#RunCommand(a:arg)
     else
         call gdb#gdb#ResumeProgram(a:arg)
     endif
