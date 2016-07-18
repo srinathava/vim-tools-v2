@@ -58,6 +58,10 @@ function! s:OpenSelection()
     endif
     let f = substitute(getline(n), '^\(>\)\=\s*', '', '')
     let f = b:textToAdd . f
+    let alt_file = b:alt_file
+    if alt_file != ""
+        exec 'drop '.alt_file
+    endif
     exec 'drop '.f
 endfunction " }}}
 " s:MapSingleKey:  {{{
@@ -133,6 +137,7 @@ function! mw#open#OpenFile()
     endif
 
     drop _MW_Files_
+    let b:alt_file = @#
     let bufnum = bufnr('%')
     call setbufvar(bufnum, '&swapfile', 0)
     call setbufvar(bufnum, '&buflisted', 0)
