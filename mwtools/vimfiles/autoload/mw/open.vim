@@ -56,13 +56,21 @@ function! s:OpenSelection()
     if n == 0
         let n = 2
     endif
-    let f = substitute(getline(n), '^\(>\)\=\s*', '', '')
-    let f = b:textToAdd . f
-    let alt_file = b:alt_file
-    if alt_file != ""
-        exec 'drop '.alt_file
+    let fileName = substitute(getline(n), '^\(>\)\=\s*', '', '')
+    let fileName = b:textToAdd . fileName
+
+    let tmpBufNum = bufnr('%')
+
+    exec 'e '.fileName
+    let newBufNum = bufnr('%')
+
+    if s:startingBufNum == newBufNum
+        exec 'b! '.s:startingAltBufNum
+        exec 'b! '.newBufNum
+    else
+        exec 'b! '.s:startingBufNum
+        exec 'b! '.newBufNum
     endif
-    exec 'drop '.f
 endfunction " }}}
 " s:MapSingleKey:  {{{
 " Description: 
@@ -136,8 +144,10 @@ function! mw#open#OpenFile()
         return
     endif
 
+    let s:startingBufNum = bufnr('%')
+    let s:startingAltBufNum = bufnr('#')
+
     drop _MW_Files_
-    let b:alt_file = @#
     let bufnum = bufnr('%')
     call setbufvar(bufnum, '&swapfile', 0)
     call setbufvar(bufnum, '&buflisted', 0)
