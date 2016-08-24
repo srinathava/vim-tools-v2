@@ -49,6 +49,19 @@ function! s:MoveSelection(offset)
     let nline = substitute(nline, '^\s', '>', '')
     call setline(n, nline)
 endfunction " }}}
+" s:restoreAltBuffer: restore @# so that CTRL-^ works {{{
+" Description: 
+function! s:restoreAltBuffer()
+    let newBufNum = bufnr('%')
+
+    if s:startingBufNum == newBufNum
+        exec 'b! '.s:startingAltBufNum
+        exec 'b! '.newBufNum
+    else
+        exec 'b! '.s:startingBufNum
+        exec 'b! '.newBufNum
+    endif
+endfunction " }}}
 " s:OpenSelection:  {{{
 " Description: 
 function! s:OpenSelection()
@@ -62,15 +75,7 @@ function! s:OpenSelection()
     let tmpBufNum = bufnr('%')
 
     exec 'e '.fileName
-    let newBufNum = bufnr('%')
-
-    if s:startingBufNum == newBufNum
-        exec 'b! '.s:startingAltBufNum
-        exec 'b! '.newBufNum
-    else
-        exec 'b! '.s:startingBufNum
-        exec 'b! '.newBufNum
-    endif
+    call s:restoreAltBuffer()
 endfunction " }}}
 " s:MapSingleKey:  {{{
 " Description: 
@@ -85,6 +90,14 @@ function! s:SafeBackspace()
     else
         return ""
     endif
+endfunction " }}}
+" s:CloseToolWindow: close tool window when user presses <esc> {{{
+" Description: 
+function! s:CloseToolWindow()
+    " bd! works better than "e #" if @# has not been set yet (for instance
+    " if we started filtering with no files open yet)
+    bd!
+    call s:restoreAltBuffer()
 endfunction " }}}
 " s:MapKeys:  {{{
 " Description: 
@@ -113,8 +126,8 @@ function! s:MapKeys()
 
     inoremap <buffer> <silent> <CR>     <esc>:call <sid>OpenSelection()<CR>
 
-    inoremap <buffer> <silent> <esc>    <esc>:e #<cr>
-    nnoremap <buffer> <silent> <esc>    :e #<cr>
+    inoremap <buffer> <silent> <esc>    <esc>:call <sid>CloseToolWindow()<CR>
+    nnoremap <buffer> <silent> <esc>    :call <sid>CloseToolWindow()<CR>
 
     " Avoids weird problems in terminal vim
     inoremap <buffer> <silent> A <Nop>
