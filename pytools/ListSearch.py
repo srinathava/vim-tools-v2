@@ -52,6 +52,9 @@ def listOrSearchFiles(searchOnlyProj, Runner):
     rootDir = getRootDir()
 
     soln = getProjSettings()
+    if not soln:
+        raise Exception("ERROR: Project description file .vimproj.xml not found either in $HOME or the root of the sandbox.")
+
     soln.setRootDir(rootDir)
 
     # The current directory decides the "current project"

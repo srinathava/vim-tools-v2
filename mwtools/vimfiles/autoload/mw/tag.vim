@@ -72,18 +72,23 @@ endfunction " }}}
 " mw#tag#InitVimTags:  {{{
 " Description: 
 function! mw#tag#InitVimTags()
-    if !has('python')
-        return
-    endif
+    call mw#utils#AssertThatWeHaveAValidProject()
+
     !genVimTags.py
     call mw#tag#AddSandboxTags(expand('%:p'))
 endfunction " }}}
 " mw#tag#SelectTag: select a tag from this project {{{
 " Description: 
 function! mw#tag#SelectTag(fname)
-    if !has('python')
+    if a:fname == ""
+        echohl Error
+        echo "You need to open a file in some project to use this tool."
+        echohl None
         return
     endif
+
+    call mw#utils#AssertThatWeHaveAValidProject()
+
     exec 'python getTagFiles(r"'.a:fname.'")'
     let output = system('selectTag.py '.tagsFile)
     let [tagName, fileName, tagPattern] = split(output, "\n")

@@ -16,8 +16,6 @@ let g:GdbCmd = 'sb -no-debug-backing-stores -debug -gdb-switches --annotate=3 -g
 
 let g:Tlist_Ctags_Cmd = $CTAGS_CMD
 
-let rtp = expand('<sfile>:p:h')
-
 map <F3> <Plug>StartBufExplorer
 map <S-F3> <Plug>SplitBufExplorer
 
@@ -34,27 +32,28 @@ function! MyDiff()
         \  " > " . v:fname_out
 endfunction
 
-let pytoolspath = rtp . '/pytools'
+let g:MW_rootDir = expand('<sfile>:p:h')
+let s:pytoolspath = g:MW_rootDir . '/pytools'
 
 if has('python')
     py import sys
     py import os
-    exec 'py sys.path += [r"'.pytoolspath.'"]'
-    exec 'py os.environ["PATH"] += (os.pathsep + "'.pytoolspath.'")'
-    exec 'py os.environ["PATH"] += (os.pathsep + "'.pytoolspath.'/selecttag")'
+    exec 'py sys.path += [r"'.s:pytoolspath.'"]'
+    exec 'py os.environ["PATH"] += (os.pathsep + "'.s:pytoolspath.'")'
+    exec 'py os.environ["PATH"] += (os.pathsep + "'.s:pytoolspath.'/selecttag")'
 end
 if has('unix')
-    let $PATH .= ':'.pytoolspath
-    let $PATH .= ':'.pytoolspath.'/selecttag'
+    let $PATH .= ':'.s:pytoolspath
+    let $PATH .= ':'.s:pytoolspath.'/selecttag'
 else
-    let $PATH .= ';'.pytoolspath
-    let $PATH .= ';'.pytoolspath.'/selecttag'
+    let $PATH .= ';'.s:pytoolspath
+    let $PATH .= ';'.s:pytoolspath.'/selecttag'
 endif
 
-exec 'set rtp^='.rtp.'/mwtools/vimfiles'
-exec 'set rtp+='.rtp.'/mwtools/vimfiles/after'
+exec 'set rtp^='.g:MW_rootDir.'/mwtools/vimfiles'
+exec 'set rtp+='.g:MW_rootDir.'/mwtools/vimfiles/after'
 
 if has('unix')
-    exec 'set rtp+='.rtp.'/gdb/vimfiles'
+    exec 'set rtp+='.g:MW_rootDir.'/gdb/vimfiles'
 endif
 

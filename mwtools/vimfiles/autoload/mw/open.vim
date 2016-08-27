@@ -149,13 +149,10 @@ endfunction " }}}
 " mw#open#OpenFile: opens a file in the solution {{{
 " Description: 
 function! mw#open#OpenFile()
+    call mw#utils#AssertThatWeHaveAValidProject()
+
     let prefix = mw#utils#GetRootDir()
-    if prefix == ''
-        echohl Error
-        echomsg "You are not in a sandbox. Use :cd to go to a sandbox directory"
-        echohl None
-        return
-    endif
+    let filelist = system('listFiles.py')
 
     let s:startingBufNum = bufnr('%')
     let s:startingAltBufNum = bufnr('#')
@@ -166,8 +163,6 @@ function! mw#open#OpenFile()
     call setbufvar(bufnum, '&buflisted', 0)
     call setbufvar(bufnum, '&buftype', 'nofile')
     call setbufvar(bufnum, '&ts', 8)
-
-    let filelist = system('listFiles.py')
 
     let origPat = @/
     silent! 0put=filelist

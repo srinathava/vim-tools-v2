@@ -92,7 +92,6 @@ amenu &Mathworks.&Compile\ Current\ Project     :call mw#sbtools#CompileProject(
 amenu &Mathworks.C&ompile\ Current\ File        :call mw#sbtools#CompileFile()<CR>
 amenu &Mathworks.&Set\ Compile\ Level.For\ &Project           :call mw#sbtools#SetCompileLevelForProject()<CR>
 amenu &Mathworks.&Set\ Compile\ Level.For\ &File              :call mw#sbtools#SetCompileLevelForFile()<CR>
-" amenu &Mathworks.DAS\ B&uild                    :call mw#sbtools#BuildUsingDas()<CR>
 
 amenu &Mathworks.-sep4- <Nop>
 amenu &Mathworks.Sa&ve\ Current\ Session        :call mw#sbtools#SaveSession()<CR>

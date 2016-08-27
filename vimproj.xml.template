@@ -1,0 +1,53 @@
+<solution>
+    <module path="matlab/toolbox/stateflow/src/stateflow" extraIncludes="*.ccdr *.stub *.yac"></module>
+    <module path="matlab/toolbox/stateflow/src/sf_xform" extraIncludes="*.ccdr *.stub *.yac"></module>
+    <module path="matlab/toolbox/stateflow/src/sf_services" extraIncludes="*.ccdr *.stub *.yac"></module>
+    <module path="matlab/toolbox/stateflow/src/sf_editor"></module>
+    <module path="matlab/toolbox/stateflow/src/sfdi_datamodel_mi"></module>
+    <module path="matlab/toolbox/stateflow/src/sfdi_datamodel" extraIncludes="*.cmof"></module>
+    <module path="matlab/toolbox/stateflow/src/sf_runtime" extraIncludes="*.stub"></module>
+    <module path="matlab/toolbox/stateflow/src/sf_sfun"></module>
+    <module path="matlab/toolbox/stateflow/src/sf_transform_tests" extraIncludes="*.input*cgel"></module>
+    <module path="matlab/toolbox/stateflow/src/sf_test_infrastructure"></module>
+    <module path="matlab/toolbox/simulink/src/sl_editor"></module>
+
+    <module path="matlab/src/cg_ir"></module>
+    <module path="matlab/src/cgir_xform"></module>
+    <module path="matlab/src/cgir_algorithm"></module>
+    <module path="matlab/src/cgir_tfl"></module>
+    <module path="matlab/src/cgir_construct"></module>
+    <module path="matlab/src/cgir_cpp_emitter"></module>
+    <module path="matlab/src/cgir_support"></module>
+    <module path="matlab/src/cgir_clair"></module>
+    <module path="matlab/src/cgir_cgel"></module>
+
+    <module path="matlab/src/simulink"></module>
+    <module path="matlab/src/SimulinkBlock"></module>
+    <module path="matlab/src/sl_lang_blocks"></module>
+    <module path="matlab/src/simstruct"></module>
+    <module path="matlab/src/sl_services"></module>
+
+    <module path="matlab/src/sl_messages"></module>
+    <module path="matlab/src/sl_event_blocks"></module>
+    <module path="matlab/src/sl_engine_classes"></module>
+    <module path="matlab/src/sl_loadsave"></module>
+
+    <module path="matlab/toolbox/shared/cgxe/src/cgxe"></module>
+
+    <module path="matlab/src/rtwcg"></module>
+
+    <module path="matlab/src/eml"></module>
+
+    <module path="matlab/toolbox/sldv/src/sldv"></module>
+
+    <project name="stateflow_mfiles">
+        <include path="matlab/toolbox/stateflow/stateflow" pattern="*.m *.html *.js *.css" />
+        <include path="matlab/toolbox/stateflow/coder" pattern="*.cdr" />
+        <include path="matlab/resources/Stateflow/en" pattern="*.xml" />
+    </project>
+
+    <project name="stateflow_rtw_tlc">
+        <include path="matlab/toolbox/stateflow/src/tlc" pattern="*.tlc" />
+        <include path="matlab/rtw/c/tlc" pattern="*.tlc" />
+    </project>
+</solution>
