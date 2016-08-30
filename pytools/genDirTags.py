@@ -24,7 +24,7 @@ os.chdir(dir)
 
 pat = " -o ".join(["-name %s " % p for p in pat.split()])
 
-ctags = os.environ['CTAGS_CMD']
+ctags = r'/hub/share/sbtools/external-apps/exuberant-ctags/exuberant-ctags-5.9/exuberant-ctags/ctags'
 ctags_config = getScriptPath('ctags.cnf')
 
 p1cmd = ['find'] + pat.split()
