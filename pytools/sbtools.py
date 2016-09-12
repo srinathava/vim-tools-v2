@@ -29,7 +29,7 @@ def getRelPathTo(fileName):
 
 def getArchivePath():
     out = getoutput('sbver')
-    return re.search(r'SyncFrom: (.*)', out).group(1)
+    return re.search(r'SyncFrom: (\S*)', out).group(1)
 
 def getSubmitFile(sbrootDir=''):
     if not sbrootDir:
