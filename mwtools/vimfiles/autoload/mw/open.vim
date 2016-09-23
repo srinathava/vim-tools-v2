@@ -53,8 +53,9 @@ endfunction " }}}
 " Description: 
 function! s:restoreAltBuffer()
     let newBufNum = bufnr('%')
+    let newBufName = bufname('%')
 
-    if s:startingBufNum == newBufNum
+    if s:startingBufName == newBufName
         exec 'b! '.s:startingAltBufNum
         exec 'b! '.newBufNum
     else
@@ -94,10 +95,39 @@ endfunction " }}}
 " s:CloseToolWindow: close tool window when user presses <esc> {{{
 " Description: 
 function! s:CloseToolWindow()
-    " bd! works better than "e #" if @# has not been set yet (for instance
-    " if we started filtering with no files open yet)
+    " This long complicated procedure is all because Vim doesn't allow us
+    " to just set @# :(
+    "
+    " This complicated procedure is to make things work when we press <esc>
+    " in various complicated scenarios:
+    " . The user starts Open from a [No Name] buffer
+    " . The user starts Open with several windows open
+    " . The user starts Open with the same buffer open in multiple windows
+    
+    " 1. We first split open a new [No Name] buffer. Remember the window
+    " number of [No Name] when it opens.
+    new
+    let tempWinNr = winnr()
+
+    " 2. We then return to the _MW_FILES_ buffer
+    wincmd w
+
+    " 3. We issue bd! on this _MW_FILES_ buffer
+    " This brings us back to [No Name]. We ensure that we are in [No Name]
+    " by using tempWinNr
     bd!
-    call s:restoreAltBuffer()
+    exec tempWinNr.' wincmd w'
+
+    " 5. We then try to restore the startingBufNum and altBufNum from this
+    " state. The reason for opening a new noname buffer and then closing
+    " _MW_FILES_ is to make sure we do not unecessarily change the window
+    " layout etc.
+    if s:startingBufName != ''
+        exec 'e #'.s:startingBufNum
+    endif
+    if s:startingAltBufNum != -1
+        call s:restoreAltBuffer()
+    endif
 endfunction " }}}
 " s:MapKeys:  {{{
 " Description: 
@@ -154,6 +184,7 @@ function! mw#open#OpenFile()
     let prefix = mw#utils#GetRootDir()
     let filelist = system('listFiles.py')
 
+    let s:startingBufName = bufname('%')
     let s:startingBufNum = bufnr('%')
     let s:startingAltBufNum = bufnr('#')
 
