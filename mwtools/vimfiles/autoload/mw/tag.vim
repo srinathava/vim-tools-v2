@@ -101,18 +101,19 @@ function! mw#tag#SelectTag(fname)
     exec tagPattern
 endfunction " }}}
 
+
+
 " ==============================================================================
 " Utilities for automatically adding required header.
 " ============================================================================== 
-" mw#tag#AddInclude: add include for word under cursor {{{
+
+" mw#tag#AddIncludeImpl: add include for word under cursor {{{
 " Description: 
-function! mw#tag#AddInclude()
-    let currentFilePath = expand('%:p:h')
-    let currentModulePath = findfile('MODULE_DEPENDENCIES', currentFilePath.';')
+function! mw#tag#AddIncludeImpl(currentFilePath, word)
+    let currentModulePath = findfile('MODULE_DEPENDENCIES', a:currentFilePath.';')
     let currentModulePath = substitute(currentModulePath, 'MODULE_DEPENDENCIES$', '', '')
 
-    let word = expand('<cword>')
-    let tags = taglist('\C^'.word.'$')
+    let tags = taglist('\C^'.a:word.'$')
 
     let fileNamesMap = {}
     for tag_ in tags
@@ -139,11 +140,43 @@ function! mw#tag#AddInclude()
         let fileName = fileNameList[0]
     end
 
-    call mw#tag#IncludeFileNameInNicePlace(fileName)
+    if fileName != ''
+        call mw#tag#IncludeFileNameInNicePlace(fileName)
+    endif
 endfunction " }}}
+
+" mw#tag#AddIncludeInSource: add include for word under cursor {{{
+" Description: 
+function! mw#tag#AddIncludeInSource()
+    let currentFilePath = expand('%:p:h')
+    let word = expand('<cword>')
+    call mw#tag#AddIncludeImpl(currentFilePath, word)
+endfunction
+
+" mw#tag#AddIncludeInQuickfix: add include for word under cursor {{{
+" Description: 
+function! mw#tag#AddIncludeInQuickfix()
+    let word = expand('<cword>')
+    exec "normal! \<CR>"
+    let currentFilePath = expand('%:p:h')
+    call mw#tag#AddIncludeImpl(currentFilePath, word)
+    wincmd w
+endfunction
+
+" mw#tag#AddInclude: add include for word under cursor {{{
+" Description: 
+function! mw#tag#AddInclude()
+    if &ft == 'qf'
+        call mw#tag#AddIncludeInQuickfix()
+    else
+        call mw#tag#AddIncludeInSource()
+    endif
+endfunction
+
 " mw#tag#IncludeFileNameInNicePlace:  {{{
 " Description: 
 function! mw#tag#IncludeFileNameInNicePlace(fileName)
+    let save_cursor = getcurpos()
 
     let neededInclude = '#include "'.a:fileName.'"'
 
@@ -195,5 +228,14 @@ function! mw#tag#IncludeFileNameInNicePlace(fileName)
 
     call append(pos, neededInclude)
     call cursor(pos+1, 1)
+
+    let save_cursor[1] += 1 " index 1 stores the line number
+    call setpos('.', save_cursor)
+
+    redraw " This is needed to ensure that this message does not dissapear
+
+    echohl WarningMsg
+    echomsg 'Adding ['.neededInclude.']'
+    echohl None
 endfunction " }}}
 
