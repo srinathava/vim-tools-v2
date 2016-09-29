@@ -101,12 +101,9 @@ function! mw#tag#SelectTag(fname)
     exec tagPattern
 endfunction " }}}
 
-
-
 " ==============================================================================
 " Utilities for automatically adding required header.
 " ============================================================================== 
-
 " mw#tag#AddIncludeImpl: add include for word under cursor {{{
 " Description: 
 function! mw#tag#AddIncludeImpl(currentFilePath, word)
@@ -144,15 +141,13 @@ function! mw#tag#AddIncludeImpl(currentFilePath, word)
         call mw#tag#IncludeFileNameInNicePlace(fileName)
     endif
 endfunction " }}}
-
 " mw#tag#AddIncludeInSource: add include for word under cursor {{{
 " Description: 
 function! mw#tag#AddIncludeInSource()
     let currentFilePath = expand('%:p:h')
     let word = expand('<cword>')
     call mw#tag#AddIncludeImpl(currentFilePath, word)
-endfunction
-
+endfunction " }}}
 " mw#tag#AddIncludeInQuickfix: add include for word under cursor {{{
 " Description: 
 function! mw#tag#AddIncludeInQuickfix()
@@ -161,8 +156,7 @@ function! mw#tag#AddIncludeInQuickfix()
     let currentFilePath = expand('%:p:h')
     call mw#tag#AddIncludeImpl(currentFilePath, word)
     wincmd w
-endfunction
-
+endfunction " }}}
 " mw#tag#AddInclude: add include for word under cursor {{{
 " Description: 
 function! mw#tag#AddInclude()
@@ -171,8 +165,7 @@ function! mw#tag#AddInclude()
     else
         call mw#tag#AddIncludeInSource()
     endif
-endfunction
-
+endfunction " }}}
 " mw#tag#IncludeFileNameInNicePlace:  {{{
 " Description: 
 function! mw#tag#IncludeFileNameInNicePlace(fileName)
@@ -239,3 +232,4 @@ function! mw#tag#IncludeFileNameInNicePlace(fileName)
     echohl None
 endfunction " }}}
 
+" vim: fdm=marker
