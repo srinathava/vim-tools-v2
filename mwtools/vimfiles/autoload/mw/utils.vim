@@ -38,7 +38,7 @@ function! mw#utils#NormalizeSandbox(sb)
     end
     if sb == 'archive'
         let output = system('sbver')
-        let archivedir = matchstr(output, 'SyncFrom: \zs\(\S\+\)\ze.*Perfect')
+        let archivedir = matchstr(output, 'SyncFrom: \zs\(\S\+\)\ze.*\nPerfect')
         return archivedir[0:(len(archivedir))]
     elseif sb == 'lkg'
         let output = system('sbver')

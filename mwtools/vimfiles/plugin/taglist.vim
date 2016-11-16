@@ -3421,7 +3421,7 @@ endfunction
 " Tlist_Find_Nearest_Tag_Idx
 " Find the tag idx nearest to the supplied line number
 " Returns -1, if a tag couldn't be found for the specified line number
-function! s:Tlist_Find_Nearest_Tag_Idx(fidx, linenum)
+function! Tlist_Find_Nearest_Tag_Idx(fidx, linenum)
     let sort_type = s:tlist_{a:fidx}_sort_type
 
     let left = 1
@@ -3549,7 +3549,7 @@ function! s:Tlist_Window_Highlight_Tag(filename, cur_lnum, cntx, center)
     " Clear previously selected name
     match none
 
-    let tidx = s:Tlist_Find_Nearest_Tag_Idx(fidx, a:cur_lnum)
+    let tidx = Tlist_Find_Nearest_Tag_Idx(fidx, a:cur_lnum)
     if tidx == -1
         " Make sure the current tag line is visible in the taglist window.
         " Calling the winline() function makes the line visible.  Don't know
@@ -3657,12 +3657,41 @@ function! Tlist_Get_Tag_Prototype_By_Line(...)
     endif
 
     " Get the tag text using the line number
-    let tidx = s:Tlist_Find_Nearest_Tag_Idx(fidx, linenr)
+    let tidx = Tlist_Find_Nearest_Tag_Idx(fidx, linenr)
     if tidx == -1
         return ""
     endif
 
     return s:Tlist_Get_Tag_Prototype(fidx, tidx)
+endfunction
+
+function! Tlist_Get_Tag_Starting_Line()
+    let filename = bufname('%')
+    let linenr = line('.')
+
+    " Make sure the current file has a name
+    let filename = fnamemodify(filename, ':p')
+    if filename == ''
+        return ""
+    endif
+
+    let fidx = s:Tlist_Get_File_Index(filename)
+    if fidx == -1
+        return ""
+    endif
+
+    " If there are no tags for this file, then no need to proceed further
+    if s:tlist_{fidx}_tag_count == 0
+        return ""
+    endif
+
+    " Get the tag name using the line number
+    let tidx = Tlist_Find_Nearest_Tag_Idx(fidx, linenr)
+    if tidx == -1
+        return ""
+    endif
+
+    return s:Tlist_Get_Tag_Linenum(fidx, tidx)
 endfunction
 
 " Tlist_Get_Tagname_By_Line
@@ -3706,7 +3735,7 @@ function! Tlist_Get_Tagname_By_Line(...)
     endif
 
     " Get the tag name using the line number
-    let tidx = s:Tlist_Find_Nearest_Tag_Idx(fidx, linenr)
+    let tidx = Tlist_Find_Nearest_Tag_Idx(fidx, linenr)
     if tidx == -1
         return ""
     endif
