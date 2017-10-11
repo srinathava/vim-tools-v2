@@ -73,6 +73,8 @@ amenu &Mathworks.D&iff.With\ &LKG                                   :DWithOther 
 
 amenu &Mathworks.-sep1- <Nop>
 amenu &Mathworks.Add\ &header\ protection       :AddHeaderProtection<CR>
+amenu &Mathworks.&Edit.Add\ &header\ protection       :AddHeaderProtection<CR>
+exec 'nmenu &Mathworks.&Edit.&Indent\ file :% pyfile '.g:MW_rootDir.'/pytools/clang-format.py<CR>'
 
 amenu &Mathworks.-sep2- <Nop>
 amenu &Mathworks.&Tags.&Initialize\ tags                    :call mw#tag#InitVimTags()<CR>

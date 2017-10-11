@@ -3,6 +3,13 @@ let b:tag_for = "for (<++>; <++>; <++>) {\<CR><++>\<CR>}"
 let b:tag_else = "else {\<CR><++>\<CR>}"
 imap <silent> <buffer> <C-e> <C-r>=C_CompleteWord()<CR>
 
+let g:clang_format_path = 'sb-clang-format'
+exec 'vnoremap <silent> <Plug>clang-format :pyfile '.g:MW_rootDir.'/pytools/clang-format.py<CR>'
+
+if !hasmapto('<Plug>clang-format', 'v')
+    vmap <silent> = <Plug>clang-format
+endif
+
 if exists('b:did_mw_c_ftplugin')
     finish
 endif
