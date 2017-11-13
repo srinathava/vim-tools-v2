@@ -17,15 +17,15 @@ function! mw#utils#GetRootDir()
 endfunction " }}}
 " mw#utils#GetOtherFileName: gets equivalent file in other sandbox {{{
 function! mw#utils#GetOtherFileName(otherDir)
-	let presRoot = mw#utils#GetRootDir()
-    
-	let presFileName = expand('%:p')
-	let relPath = strpart(presFileName, strlen(presRoot))
+    let presRoot = mw#utils#GetRootDir()
 
-	let otherFileName = a:otherDir.relPath
-	if !filereadable(otherFileName)
+    let presFileName = expand('%:p')
+    let relPath = strpart(presFileName, strlen(presRoot))
+
+    let otherFileName = a:otherDir.relPath
+    if !filereadable(otherFileName)
         return ''
-	endif
+    endif
 
     return otherFileName
 endfunction " }}}
@@ -38,12 +38,12 @@ function! mw#utils#NormalizeSandbox(sb)
     end
     if sb == 'archive'
         let output = system('sbver')
-        let archivedir = matchstr(output, 'SyncFrom: \zs\(\S\+\)\ze.*\nPerfect')
-        return archivedir[0:(len(archivedir))]
+        let archivedir = matchstr(output, 'SyncFrom: \zs\([^ \t\n]\+\)\ze')
+        return archivedir
     elseif sb == 'lkg'
         let output = system('sbver')
-        let archivedir = matchstr(output, 'Perfect: \zs\(\S\+\)\ze')
-        return archivedir[0:(len(archivedir)-2)]
+        let archivedir = matchstr(output, 'Perfect: \zs\([^ \t\n]\+\)\ze')
+        return archivedir
     else
         return ''
     endif

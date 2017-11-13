@@ -72,9 +72,11 @@ amenu &Mathworks.D&iff.With\ &LKG                                   :DWithOther 
 " amenu &Mathworks.&Add\ current\ file\ to\ submit\ list              :!add.py %:p<CR>
 
 amenu &Mathworks.-sep1- <Nop>
-amenu &Mathworks.Add\ &header\ protection       :AddHeaderProtection<CR>
-amenu &Mathworks.&Edit.Add\ &header\ protection       :AddHeaderProtection<CR>
-exec 'nmenu &Mathworks.&Edit.&Indent\ file :% pyfile '.g:MW_rootDir.'/pytools/clang-format.py<CR>'
+amenu &Mathworks.&Edit/Refactor.Add\ &header\ protection       :AddHeaderProtection<CR>
+exec 'nmenu &Mathworks.&Edit/Refactor.&Indent\ file :% pyfile '.g:MW_rootDir.'/pytools/clang-format.py<CR>'
+nmenu &Mathworks.&Edit/Refactor.-sep1- <Nop>
+nmenu &Mathworks.&Edit/Refactor.&Rename\ symbol :call mw#refactor#rename()<CR>
+
 
 amenu &Mathworks.-sep2- <Nop>
 amenu &Mathworks.&Tags.&Initialize\ tags                    :call mw#tag#InitVimTags()<CR>

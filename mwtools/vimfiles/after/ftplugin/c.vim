@@ -1,4 +1,5 @@
-setlocal cinoptions=:0,g2,h2,(0,:2,=2,l1,W4
+" Gets close to the MathWorks indentation standard as of Nov 2017
+setlocal cinoptions=:0,N-s,g2,h2,(0,=4,l1,W4
 
 " We first remove the double slash and add it after the triple slash,
 " otherwise things seem to not work.
