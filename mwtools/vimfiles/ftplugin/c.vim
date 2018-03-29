@@ -39,9 +39,26 @@ function! ToggleSrcHeader()
     else
         let other = glob(fname.'.c*')
     endif
-    let other = split(other, '\n\|\r')[0]
-    if strlen(other) > 0
-        exec 'drop '.other
+    if len(other) >= 1
+        let other = split(other, '\n\|\r')[0]
+        if strlen(other) > 0
+            exec 'drop '.other
+        endif
+    else
+        let thisbufname = expand('%:p:t:r')
+        let thisbufext = expand('%:p:t:e')
+
+        for i in range(1,bufnr('$'))
+            if !bufexists(i) || !buflisted(i)
+                continue
+            endif
+            let otherbufname = fnamemodify(bufname(i), ':p:t:r')
+            let otherbufext = fnamemodify(bufname(i), ':p:t:e')
+            if thisbufname == otherbufname && thisbufext != otherbufext
+                exec 'drop #'.i
+                return
+            endif
+        endfor
     endif
 endfunction " }}}
 
