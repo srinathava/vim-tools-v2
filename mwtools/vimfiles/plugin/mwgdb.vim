@@ -1,14 +1,10 @@
-if !has('python')
-    finish
-endif
-
 " MW_AttachToMatlab:  {{{
 " Description: 
 
 let s:scriptDir = expand('<sfile>:p:h')
-python import sys, vim
-exec "python sys.path += [r'".s:scriptDir."']"
-python from startMatlab import startMatlab
+call MW_ExecPython("import sys, vim")
+call MW_ExecPython("sys.path += [r'".s:scriptDir."']")
+call MW_ExecPython("from startMatlab import startMatlab")
 
 function! MW_AttachToMatlab(pid, mode)
     call gdb#gdb#Init()
@@ -58,8 +54,7 @@ endfunction "}}}
 " MW_StartMatlab:  {{{
 " Description: 
 function! MW_StartMatlab(attach, mode)
-    exec 'python pid = startMatlab("'.a:mode.'")'
-    python vim.command('let pid = %d' % pid)
+    let pid = MW_EvalPython('startMatlab("'.a:mode.'")')
 
     if pid == 0
         echohl Search

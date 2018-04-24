@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 
-import urllib
+import urllib.request, urllib.parse, urllib.error
 from os import path
 import subprocess
 import sys
 
-from HTMLParser import HTMLParser
+from html.parser import HTMLParser
 import re
-import urllib
+import urllib.request, urllib.parse, urllib.error
 
 FILE_PATTERN = re.compile('file=([^&]+)')
 NUM_FILES_LIMIT = 5000
@@ -37,7 +37,7 @@ simulink'''.split()
 
 searchTerm = sys.argv[1]
 
-params = urllib.urlencode({'searchTerm': searchTerm, 
+params = urllib.parse.urlencode({'searchTerm': searchTerm, 
                            'searchField': 'TEXT',
                            'sort': 'PATH',
                            'fileType': fileType, 
@@ -47,7 +47,7 @@ params = urllib.urlencode({'searchTerm': searchTerm,
                            }, True)
 fullurl = 'http://codesearch.mathworks.com:8080/srcsearch/SearchResults.do?%s' % params
 # print fullurl
-f = urllib.urlopen(fullurl)
+f = urllib.request.urlopen(fullurl)
 url_output = f.read()
 # print url_output
 fullfiles = []
@@ -69,7 +69,7 @@ class MyParser(HTMLParser):
             if filename:
                 m = FILE_PATTERN.search(filename)
                 if m:
-                    filename = urllib.unquote(m.group(1))
+                    filename = urllib.parse.unquote(m.group(1))
                     self.filenames.add(filename)
 
                     if len(self.filenames) > NUM_FILES_LIMIT:
@@ -89,6 +89,6 @@ for filename in p.filenames:
     fullfiles.add(fullpath)
 
 if len(fullfiles) > NUM_FILES_LIMIT:
-    print "Too many file matches (%d)!" % len(fullfiles)
+    print("Too many file matches (%d)!" % len(fullfiles))
 else:
-    print subprocess.Popen(['grep', '-nH', '-i', searchTerm] + list(fullfiles), stdout=subprocess.PIPE).communicate()[0]
+    print(subprocess.Popen(['grep', '-nH', '-i', searchTerm] + list(fullfiles), stdout=subprocess.PIPE).communicate()[0])

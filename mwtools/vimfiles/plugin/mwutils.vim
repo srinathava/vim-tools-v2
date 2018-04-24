@@ -24,9 +24,9 @@ com! -nargs=0 FastFile call mw#open#OpenFile()
 augroup ChangeFilePermsBeforeWriting
     au!
     au BufWritePre * 
-        \ : if filereadable(expand('<afile>')) && !filewritable(expand('<afile>')) && has('python')
-        \ |     exec 'py import os, stat, vim'
-        \ |     exec 'py os.chmod(vim.current.buffer.name, 0755)'
+        \ : if filereadable(expand('<afile>')) && !filewritable(expand('<afile>'))
+        \ |     call MW_ExecPython('import os, vim')
+        \ |     call MW_ExecPython('os.chmod(vim.current.buffer.name, 0755)')
         \ | endif
 augroup END
 
@@ -73,7 +73,7 @@ amenu &Mathworks.D&iff.With\ &LKG                                   :DWithOther 
 
 amenu &Mathworks.-sep1- <Nop>
 amenu &Mathworks.&Edit/Refactor.Add\ &header\ protection       :AddHeaderProtection<CR>
-exec 'nmenu &Mathworks.&Edit/Refactor.&Indent\ file :% pyfile '.g:MW_rootDir.'/pytools/clang-format.py<CR>'
+nmenu &Mathworks.&Edit/Refactor.&Indent\ file :call mw#edit#FormatCurrentSelection()<CR>
 nmenu &Mathworks.&Edit/Refactor.-sep1- <Nop>
 nmenu &Mathworks.&Edit/Refactor.&Rename\ symbol :call mw#refactor#rename()<CR>
 

@@ -4,7 +4,7 @@ let b:tag_else = "else {\<CR><++>\<CR>}"
 imap <silent> <buffer> <C-e> <C-r>=C_CompleteWord()<CR>
 
 let g:clang_format_path = 'sb-clang-format'
-exec 'vnoremap <silent> <Plug>clang-format :pyfile '.g:MW_rootDir.'/pytools/clang-format.py<CR>'
+exec 'vnoremap <silent> <Plug>clang-format :call mw#edit#FormatCurrentSelection()<CR>'
 
 if !hasmapto('<Plug>clang-format', 'v')
     vmap <silent> = <Plug>clang-format
@@ -13,8 +13,8 @@ endif
 if exists('b:did_mw_c_ftplugin')
     finish
 endif
-
 let b:did_mw_c_ftplugin = 1
+
 call mw#tag#AddSandboxTags(expand('%:p'))
 let Tlist_Process_File_Always = 1
 let Tlist_Auto_Update = 1

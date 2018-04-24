@@ -15,5 +15,5 @@ if options.listTags:
 else:
     klass = Lister
 
-print "\n".join(listOrSearchFiles(options.onlyInProj, klass))
+print("\n".join(listOrSearchFiles(options.onlyInProj, klass)))
 

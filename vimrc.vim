@@ -33,15 +33,42 @@ function! MyDiff()
 endfunction
 
 let g:MW_rootDir = expand('<sfile>:p:h')
-let s:pytoolspath = g:MW_rootDir . '/pytools'
+let g:MW_sbtoolsDir = fnamemodify(g:MW_rootDir, ':h:h')
 
-if has('python')
-    py import sys
-    py import os
-    exec 'py sys.path += [r"'.s:pytoolspath.'"]'
-    exec 'py os.environ["PATH"] += (os.pathsep + "'.s:pytoolspath.'")'
-    exec 'py os.environ["PATH"] += (os.pathsep + "'.s:pytoolspath.'/selecttag")'
-end
+let s:pytoolspath = g:MW_rootDir . '/pytools'
+" MW_ExecPython: executes a command in either of python or python3
+" Description: 
+function! MW_ExecPython(cmd)
+    if has('pythonx')
+        exec 'pythonx '.a:cmd
+    elseif has('python')
+        exec 'python '.a:cmd
+    else
+        exec 'python3 '.a:cmd
+    endif
+endfunction
+
+function! MW_EvalPython(cmd)
+    if has('pythonx')
+        return pyxeval(a:cmd)
+    elseif has('python')
+        return pyeval(a:cmd)
+    else
+        return py3eval(a:cmd)
+    endif
+endfunction
+
+call MW_ExecPython('import sys')
+call MW_ExecPython('import os')
+call MW_ExecPython('sys.path += [r"'.s:pytoolspath.'"]')
+call MW_ExecPython('os.environ["PATH"] += (os.pathsep + "'.s:pytoolspath.'")')
+call MW_ExecPython('os.environ["PATH"] += (os.pathsep + "'.s:pytoolspath.'/selecttag")')
+if has('python3')
+    call MW_ExecPython('sys.path += [r"'.g:MW_sbtoolsDir.'/external-apps/python/python3/site-packages"]')
+elseif has('python')
+    call MW_ExecPython('sys.path += [r"'.g:MW_sbtoolsDir.'/external-apps/python/python27/site-packages"]')
+endif
+
 if has('unix')
     let $PATH .= ':'.s:pytoolspath
     let $PATH .= ':'.s:pytoolspath.'/selecttag'
@@ -56,4 +83,3 @@ exec 'set rtp+='.g:MW_rootDir.'/mwtools/vimfiles/after'
 if has('unix')
     exec 'set rtp+='.g:MW_rootDir.'/gdb/vimfiles'
 endif
-

@@ -40,4 +40,4 @@ def find(args, allFiles):
 if __name__ == "__main__":
     import sys
     allFiles = sys.stdin.read().splitlines()
-    print find(sys.argv[1:], allFiles)
+    print(find(sys.argv[1:], allFiles))

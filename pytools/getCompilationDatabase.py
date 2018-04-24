@@ -55,6 +55,6 @@ def getCompilationDatabase(filename):
     return jsonstr
 
 if __name__ == "__main__":
-    print(getCompilationDatabase(sys.argv[1]))
+    print((getCompilationDatabase(sys.argv[1])))
 
 

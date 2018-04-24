@@ -152,4 +152,4 @@ def getProjSettings():
         return None
 
 if __name__ == "__main__":
-    print getProjSettings()
+    print(getProjSettings())

@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
+
 import os
 import sys
 from os import path
@@ -18,7 +20,7 @@ for i in range(1,len(args)):
         tagsFile = args[i]
         args[i] = tmpTagsFile
 
-print "tags %(dir)s/%(pat)s -f %(tagsFile)s ..." % locals(),
+print("tags %(dir)s/%(pat)s -f %(tagsFile)s ..." % locals(), end=' ')
 
 os.chdir(dir)
 
@@ -46,8 +48,8 @@ if isDifferent:
     os.system('mv -f %(tmpTagsFile)s %(tagsFile)s' % locals())
     os.system('chmod -w %(tagsFile)s' % locals())
 else:
-    print 'Tags file didnt change...'
+    print('Tags file didnt change...')
     os.system('rm -f %(tmpTagsFile)s' % locals())
 
 os.system('chmod go+r %(tagsFile)s' % locals())
-print "done"
+print("done")

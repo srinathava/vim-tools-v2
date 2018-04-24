@@ -65,12 +65,12 @@ function! s:GdbInitWork( )
     exec "nmap <buffer> <silent> <CR>           :call gdb#gdb#GotoSelectedFrame()<CR>"
     " exec "nmap <buffer> <silent> <2-LeftMouse>  :call gdb#gdb#GotoSelectedFrame()<CR>"
 
-    python import sys
-    python import vim
-    exec 'python sys.path += [r"'.s:scriptDir.'"]'
-    python from VimGdbClient import VimGdbClient, initLogging
+    call MW_ExecPython("import sys")
+    call MW_ExecPython("import vim")
+    call MW_ExecPython('sys.path += [r"'.s:scriptDir.'"]')
+    call MW_ExecPython("from VimGdbClient import VimGdbClient, initLogging")
 
-    exec 'py initLogging('.g:GdbLogging.')'
+    call MW_ExecPython('initLogging('.g:GdbLogging.')')
 
     if has('gui_running') && g:GdbShowAsyncOutputWindow
         if v:servername == ''
@@ -83,12 +83,12 @@ function! s:GdbInitWork( )
         silent! exec '!xterm -T GDB -e python '.s:scriptDir.'/VimGdbServer.py '.loggingArg.v:servername.' &'
         silent! sleep 2
     else
-        python from VimGdbServer import startVimServerThread
-        exec 'python portNum = startVimServerThread("'.v:servername.'", "'.g:GdbCmd.'")'
+        call MW_ExecPython("from VimGdbServer import startVimServerThread")
+        call MW_ExecPython('portNum = startVimServerThread("'.v:servername.'", "'.g:GdbCmd.'")')
     endif
 
-    python gdbClient = VimGdbClient(portNum)
-    python gdbClient.flush()
+    call MW_ExecPython("gdbClient = VimGdbClient(portNum)")
+    call MW_ExecPython("gdbClient.flush()")
     
     g/^\s*$/d_
 
@@ -316,7 +316,7 @@ function! gdb#gdb#UpdateCmdWin()
     endif
 
     exec gdbWinNr.' wincmd w'
-    python gdbClient.printNewLines()
+    call MW_ExecPython("gdbClient.printNewLines()")
     normal! G
 
     if gdbWinNr != presWinNr
@@ -344,7 +344,7 @@ function! gdb#gdb#OnResume()
     " We want to make sure that the command window shows the latest stuff
     " when we are given control. Too bad if the user is busy typing
     " something while this is going on.
-    python gdbClient.flush()
+    call MW_ExecPython("gdbClient.flush()")
     call gdb#gdb#UpdateCmdWin()
     call gdb#gdb#GotoCurFrame()
 
@@ -382,9 +382,9 @@ function! s:GdbGetCommandOutputSilent(cmd)
         return ''
     endif
 
-    python gdbClient.updateWindow = False
-    exec 'python gdbClient.getCommandOutput("""'.a:cmd.' """, "retval")'
-    python gdbClient.updateWindow = True
+    call MW_ExecPython("gdbClient.updateWindow = False")
+    let retval = MW_EvalPython('gdbClient.getCommandOutput("""'.a:cmd.'""")')
+    call MW_ExecPython("gdbClient.updateWindow = True")
     return retval
 endfunction " }}}
 " s:GdbGetCommandOutput: gets the output of the command {{{
@@ -395,7 +395,7 @@ function! s:GdbGetCommandOutput(cmd)
     endif
 
     let pos = s:GetCurPos()
-    exec 'python gdbClient.getCommandOutput("""'.a:cmd.' """, "retval")'
+    let retval = MW_EvalPython('gdbClient.getCommandOutput("""'.a:cmd.'""")')
     call s:SetCurPos(pos)
 
     return retval
@@ -420,7 +420,7 @@ function! gdb#gdb#RunCommand(cmd)
     " have multiple on going connections to it.
     let oldBE = &ballooneval
     set noballooneval
-    exec 'python gdbClient.runCommand("""'.cmd.'""")'
+    call MW_ExecPython('gdbClient.runCommand("""'.cmd.'""")')
     call s:SetCurPos(pos)
     let &ballooneval = oldBE
 
@@ -433,7 +433,7 @@ function! gdb#gdb#Terminate()
     if s:gdbStarted == 1
         sign unplace 1
         set balloonexpr=
-        python gdbClient.terminate()
+        call MW_ExecPython("gdbClient.terminate()")
         call s:RestoreUserMaps()
         call s:CloseAllGdbWindows()
         let s:gdbStarted = 0
@@ -456,8 +456,7 @@ endfunction " }}}
 " gdb#gdb#IsBusy: tells if inferior program is running {{{
 " Description: 
 function! gdb#gdb#IsBusy()
-    py vim.command('let retval = %s' % gdbClient.isBusy())
-    return retval
+    return MW_EvalPython('gdbClient.isBusy()')
 endfunction " }}}
 " s:GdbWarnIfNotStarted: warns if GDB has not been started {{{
 " Description:  
@@ -500,9 +499,9 @@ endfunction " }}}
 " Description: 
 function! gdb#gdb#SetQueryAnswer(ans)
     if a:ans != ''
-        exec 'py gdbClient.queryAnswer = "'.a:ans.'"'
+        call MW_ExecPython('gdbClient.queryAnswer = "'.a:ans.'"')
     else
-        exec 'py gdbClient.queryAnswer = None'
+        call MW_ExecPython('gdbClient.queryAnswer = None')
     endif
 endfunction " }}}
 
@@ -517,7 +516,7 @@ function! gdb#gdb#GotoCurFrame()
     endif
 
     sign unplace 1
-    python gdbClient.gotoCurrentFrame()
+    call MW_ExecPython("gdbClient.gotoCurrentFrame()")
     redraw
 endfunction " }}}
 " gdb#gdb#FrameUp: goes up the stack (i.e., to caller function) {{{
@@ -578,7 +577,7 @@ endfunction " }}}
 " gdb#gdb#ExpandStack:  {{{
 " Description: 
 function! gdb#gdb#ExpandStack(numFrames)
-    exec 'python gdbClient.expandStack('.a:numFrames.')'
+    call MW_ExecPython('gdbClient.expandStack('.a:numFrames.')')
     setlocal nomod
 endfunction " }}}
 " gdb#gdb#ShowStack: shows current GDB stack {{{
@@ -595,7 +594,7 @@ function! gdb#gdb#ShowStack()
     % d _
     " winheight - 1 because we want the last line reserved for 
     " press <tab> for more lines.
-    exec 'python gdbClient.expandStack('.(winheight('.')-1).')'
+    call MW_ExecPython('gdbClient.expandStack('.(winheight('.')-1).')')
     " Remove all empty lines.
     g/^\s*$/d_
 
@@ -855,7 +854,7 @@ function! gdb#gdb#ResumeProgram(cmd)
     sign unplace 1
     set balloonexpr=
 
-    exec 'python gdbClient.resumeProgram("""'.a:cmd.'""")'
+    call MW_ExecPython('gdbClient.resumeProgram("""'.a:cmd.'""")')
 endfunction " }}}
 " gdb#gdb#Run: runs the inferior program {{{
 function! gdb#gdb#Run()
@@ -917,7 +916,7 @@ function! gdb#gdb#Interrupt( )
     if s:GdbWarnIfNotStarted()
         return
     endif
-    python gdbClient.interrupt()
+    call MW_ExecPython("gdbClient.interrupt()")
     call gdb#gdb#OnResume()
 endfunction " }}}
 " gdb#gdb#Kill: kills the inferior {{{
@@ -926,7 +925,7 @@ function! gdb#gdb#Kill()
         return
     endif
     if gdb#gdb#IsBusy()
-        python gdbClient.interrupt()
+        call MW_ExecPython("gdbClient.interrupt()")
     endif
     call gdb#gdb#RunCommand('kill')
     let progInfo = s:GdbGetCommandOutputSilent('info program')
@@ -1025,17 +1024,17 @@ function! gdb#gdb#AddGdbVar(inExpr)
 
     call gdb#gdb#OpenGdbVarsWindow()
 
-    exec 'python gdbClient.addGdbVar("'.expr.'")'
+    call MW_ExecPython('gdbClient.addGdbVar("'.expr.'")')
 endfunction " }}}
 " gdb#gdb#ExpandGdbVar:  {{{
 " Description: 
 function! gdb#gdb#ExpandGdbVar()
-    python gdbClient.expandGdbVar()
+    call MW_ExecPython("gdbClient.expandGdbVar()")
 endfunction " }}}
 " gdb#gdb#CollapseGdbVar:  {{{
 " Description: 
 function! gdb#gdb#CollapseGdbVar()
-    python gdbClient.collapseGdbVar()
+    call MW_ExecPython("gdbClient.collapseGdbVar()")
 
     " Now remove all lines beneath this one with greater indentation that
     " this one. This basically collapses the tree beneath this one.
@@ -1071,7 +1070,7 @@ function! gdb#gdb#RefreshGdbVars()
         call gdb#gdb#OpenGdbVarsWindow()
         " remove all previous notifications.
         %s/^[^#]/ /
-        python gdbClient.refreshGdbVars()
+        call MW_ExecPython("gdbClient.refreshGdbVars()")
     endif
 endfunction " }}}
 " gdb#gdb#DeleteGdbVar:  {{{
@@ -1089,7 +1088,7 @@ function! gdb#gdb#DeleteGdbVar(wholeTree)
     " First delete everything below.
     call gdb#gdb#CollapseGdbVar()
     " then delete itself.
-    python gdbClient.deleteGdbVar()
+    call MW_ExecPython("gdbClient.deleteGdbVar()")
     " then delete the current line.
     . d _
 endfunction " }}}

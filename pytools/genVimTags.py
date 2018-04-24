@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
+
 from getProjSettings import getProjSettings
 from sbtools import getRootDir, getRelPathTo
 from threading import Thread
@@ -26,14 +28,14 @@ def genVimTags(fname):
     rootDir = getRootDir()
 
     if fname != '' and (rootDir not in fname):
-        print "Current file '%s' not in a project" % fname
+        print("Current file '%s' not in a project" % fname)
         sys.exit(1)
 
     fname = getRelPathTo(fname)
 
     soln = getProjSettings()
     if not soln:
-        print "ERROR: Project description file .vimproj.xml not found either in $HOME or the root of the sandbox."
+        print("ERROR: Project description file .vimproj.xml not found either in $HOME or the root of the sandbox.")
         sys.exit(1)
 
     soln.setRootDir(rootDir)

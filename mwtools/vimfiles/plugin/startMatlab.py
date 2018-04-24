@@ -1,8 +1,13 @@
 #!/usr/bin/env python
 
-import commands, re, time
+from __future__ import print_function
+import re, time
 import subprocess
 import sys
+try:
+    from subprocess import getoutput
+except ImportError:
+    from commands import getoutput
 
 def startMatlab(extraArgs):
     if ('-nojvm' in extraArgs) or ('-nodesktop' in extraArgs):
@@ -19,7 +24,7 @@ def startMatlab(extraArgs):
     # wait for the correct MATLAB process to be loaded.
     n = 0
     while 1:
-        pst = commands.getoutput('pstree -p %d' % pid)
+        pst = getoutput('pstree -p %d' % pid)
         m = re.search(r'MATLAB\((\d+)\)', pst)
         if m:
             return int(m.group(1))
@@ -31,5 +36,5 @@ def startMatlab(extraArgs):
 
 if __name__ == "__main__":
     pid = startMatlab(' '.join(sys.argv[1:]))
-    print pid
+    print(pid)
 

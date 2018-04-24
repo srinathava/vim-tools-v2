@@ -25,7 +25,7 @@
 #
 # It operates on the current, potentially unsaved buffer and does not create
 # or save any files. To revert a formatting, just undo.
-from __future__ import print_function
+
 
 import difflib
 import json
@@ -124,4 +124,4 @@ def main():
       print('clang-format: incomplete (syntax errors)')
     vim.command('goto %d' % (output['Cursor'] + 1))
 
-main()
+# main()

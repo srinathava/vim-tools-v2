@@ -56,4 +56,4 @@ def getScriptPath(scriptName):
     return path.join(scriptDir, scriptName)
 
 if __name__ == "__main__":
-    print(getRelPathTo('cdr_transform_driver.cpp'))
+    print((getRelPathTo('cdr_transform_driver.cpp')))
