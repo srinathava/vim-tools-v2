@@ -26,7 +26,7 @@ augroup ChangeFilePermsBeforeWriting
     au BufWritePre * 
         \ : if filereadable(expand('<afile>')) && !filewritable(expand('<afile>'))
         \ |     call MW_ExecPython('import os, vim')
-        \ |     call MW_ExecPython('os.chmod(vim.current.buffer.name, 0755)')
+        \ |     call MW_ExecPython('os.chmod(vim.current.buffer.name, 0o755)')
         \ | endif
 augroup END
 

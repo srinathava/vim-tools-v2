@@ -63,10 +63,10 @@ call MW_ExecPython('import os')
 call MW_ExecPython('sys.path += [r"'.s:pytoolspath.'"]')
 call MW_ExecPython('os.environ["PATH"] += (os.pathsep + "'.s:pytoolspath.'")')
 call MW_ExecPython('os.environ["PATH"] += (os.pathsep + "'.s:pytoolspath.'/selecttag")')
-if has('python3')
-    call MW_ExecPython('sys.path += [r"'.g:MW_sbtoolsDir.'/external-apps/python/python3/site-packages"]')
-elseif has('python')
+if has('python')
     call MW_ExecPython('sys.path += [r"'.g:MW_sbtoolsDir.'/external-apps/python/python27/site-packages"]')
+elseif has('python3')
+    call MW_ExecPython('sys.path += [r"'.g:MW_sbtoolsDir.'/external-apps/python/python3/site-packages"]')
 endif
 
 if has('unix')
