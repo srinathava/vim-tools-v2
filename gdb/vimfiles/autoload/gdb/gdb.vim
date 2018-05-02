@@ -48,6 +48,8 @@ let s:gdbNametoBufNumMap = {}
 
 let s:userMappings = {}
 
+let s:queryAnswer = ''
+
 " s:GdbInitWork: does the actual work of initialization {{{
 " Description: 
 function! s:GdbInitWork( )
@@ -363,12 +365,26 @@ endfunction " }}}
 " gdb#gdb#GetQueryAnswer:  {{{
 " Description: 
 function! gdb#gdb#GetQueryAnswer(query)
+    if s:queryAnswer != ''
+        return s:queryAnswer
+    endif
+
     call foreground()
     let ans = confirm(a:query, "&Yes\n&No")
     if ans == 1
         return 'y'
     else
         return 'n'
+    endif
+endfunction " }}}
+" gdb#gdb#SetQueryAnswer: sets an answer for future queries {{{
+" Description: 
+function! gdb#gdb#SetQueryAnswer(ans)
+    let s:queryAnswer = a:ans
+    if a:ans != ''
+        call MW_ExecPython('gdbClient.queryAnswer = "'.a:ans.'"')
+    else
+        call MW_ExecPython('gdbClient.queryAnswer = None')
     endif
 endfunction " }}}
 
@@ -493,15 +509,6 @@ function! gdb#gdb#RunOrResume(arg)
         call gdb#gdb#RunCommand(a:arg)
     else
         call gdb#gdb#ResumeProgram(a:arg)
-    endif
-endfunction " }}}
-" gdb#gdb#SetQueryAnswer: sets an answer for future queries {{{
-" Description: 
-function! gdb#gdb#SetQueryAnswer(ans)
-    if a:ans != ''
-        call MW_ExecPython('gdbClient.queryAnswer = "'.a:ans.'"')
-    else
-        call MW_ExecPython('gdbClient.queryAnswer = None')
     endif
 endfunction " }}}
 

@@ -28,6 +28,7 @@ class VimGdbServer(GdbServer):
                          '--remote-expr',
                          'gdb#gdb#GetQueryAnswer("%s")' % query],
                         stdout=PIPE).communicate()[0]
+            ans = ans.decode()
         else:
             ans = vim.eval('gdb#gdb#GetQueryAnswer("%s")' % query)
 

@@ -35,6 +35,8 @@ function! GdbTest_WaitForGdb()
             break
         endif
     endwhile
+    sleep 100 m
+    redraw!
 endfunction " }}}
 
 " Test_GetSigns:  {{{
@@ -60,10 +62,16 @@ function! Test_main()
     " Run and ensure breakpoint is hit
     GDB run
     call GdbTest_WaitForGdb()
-    sleep 100 m
-    redraw!
     if Test_GetSigns() !~ 'line=4[^\n]*name=gdbCurFrame'
         call VimTest_Fail('FAILED to run to current breakpoint')
+    endif
+
+    " Attempt to restart from beginning
+    call gdb#gdb#SetQueryAnswer('y')
+    GDB run
+    call GdbTest_WaitForGdb()
+    if Test_GetSigns() !~ 'line=4[^\n]*name=gdbCurFrame'
+        call VimTest_Fail('FAILED to restart and run to current breakpoint')
     endif
 
     " Navigate up the stack
