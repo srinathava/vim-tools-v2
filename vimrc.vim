@@ -70,11 +70,11 @@ elseif has('python3')
 endif
 
 if has('unix')
-    let $PATH .= ':'.s:pytoolspath
-    let $PATH .= ':'.s:pytoolspath.'/selecttag'
+    let $PATH = s:pytoolspath.':'.$PATH
+    let $PATH = s:pytoolspath.'/selecttag:'.$PATH
 else
-    let $PATH .= ';'.s:pytoolspath
-    let $PATH .= ';'.s:pytoolspath.'/selecttag'
+    let $PATH = s:pytoolspath.';'.$PATH
+    let $PATH = s:pytoolspath.'/selecttag;'.$PATH
 endif
 
 exec 'set rtp^='.g:MW_rootDir.'/mwtools/vimfiles'

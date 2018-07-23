@@ -19,7 +19,7 @@ def getModuleRoot():
 def normalizePath(dirName, relPath):
     return os.path.abspath(os.path.join(dirName, relPath))
 
-def getCompilationDatabase(filename):
+def getFlags(filename):
     absfilename = path.abspath(filename)
     os.chdir(path.dirname(absfilename))
 
@@ -41,6 +41,11 @@ def getCompilationDatabase(filename):
     flags.extend([f.text for f in root.findall('./CXXFLAGS/flag')])
     flags.extend([('-I%s' % normalizePath(moduleRoot, inc.text)) for inc in root.findall('./moduleIncludePath/dir')])
     flags.extend(['-Wno-unused-parameter'])
+
+    return (flags, moduleRoot)
+
+def getCompilationDatabase(filename):
+    (flags, moduleRoot) = getFlags(filename)
 
     flagstr = ' '.join(flags)
     cmdline = 'clang++ %(flagstr)s -c %(filename)s -o /tmp/foo.o' % locals()

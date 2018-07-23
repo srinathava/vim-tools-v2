@@ -35,6 +35,10 @@ function! mw#tag#SelectTag(fname)
 
     let tagsFile = MW_EvalPython('getTagFiles(r"'.a:fname.'")')
     let output = system('selectTag.py '.tagsFile)
+    if output == ''
+        return
+    endif
+
     let [tagName, fileName, tagPattern] = split(output, "\n")
 
     let tagsFilePath = fnamemodify(tagsFile, ':p:h')
@@ -54,7 +58,10 @@ function! mw#tag#AddIncludeImpl(currentFilePath, word)
     let currentModulePath = findfile('MODULE_DEPENDENCIES', a:currentFilePath.';')
     let currentModulePath = substitute(currentModulePath, 'MODULE_DEPENDENCIES$', '', '')
 
+    let origTagsFile = &l:tags
+    call MW_ExecPython('addSandboxTags(r"'.a:currentFilePath.'", addAllTags=True)')
     let tags = taglist('\C^'.a:word.'$')
+    let &l:tags = origTagsFile
 
     let fileNamesMap = {}
     for tag_ in tags

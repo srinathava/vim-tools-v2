@@ -21,17 +21,12 @@ com! -nargs=0 FastFile call mw#open#OpenFile()
 " which files are write-able. Therefore, vim's behavior of retaining the
 " readonly-ness of files even after writing content to it hides changes we
 " might have made.
-augroup ChangeFilePermsBeforeWriting
+augroup MakeWritableAndAddToPerforce
     au!
-    au BufWritePre * 
-        \ : if filereadable(expand('<afile>')) && !filewritable(expand('<afile>'))
-        \ |     call MW_ExecPython('import os, vim')
-        \ |     call MW_ExecPython('os.chmod(vim.current.buffer.name, 0o755)')
-        \ | endif
-augroup END
-
-augroup AddFilesToPerforce
-    au!
+    au BufWritePre  * call mw#perforce#MakeWritable(expand('<afile>:p'))
+    " adding a file to perforce needs to happen after write, not before
+    " otherwise new files will not be added since they do not exist on disk
+    " yet.
     au BufWritePost * call mw#perforce#AddFileToPerforce(expand('<afile>:p'))
 augroup END
 

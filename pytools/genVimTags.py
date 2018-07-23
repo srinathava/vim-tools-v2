@@ -50,7 +50,11 @@ def genVimTags(fname):
         if (not fname) or proj.includesFile(fname):
             for inc in proj.includes:
                 if path.isdir(inc['path']):
-                    th = TagCreator(inc['path'], inc['pattern'], '-f %s' % inc['tagsFile'])
+                    th = TagCreator(inc['path'], inc['pattern'], ' -f %s' % inc['tagsFile'])
+                    th.start()
+                    threads += [th]
+
+                    th = TagCreator(inc['path'], inc['pattern'], ' --c++-kinds=+p --line-directives -f %s' % inc['allTagsFile'])
                     th.start()
                     threads += [th]
 

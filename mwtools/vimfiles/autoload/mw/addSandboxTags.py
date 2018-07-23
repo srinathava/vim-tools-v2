@@ -4,7 +4,7 @@ from getProjSettings import getProjSettings
 from sbtools import getRootDir
 
 
-def addSandboxTags(fname):
+def addSandboxTags(fname, addAllTags=False):
     rootDir = getRootDir()
     if not rootDir:
         return
@@ -20,6 +20,11 @@ def addSandboxTags(fname):
             # add project tags
             for inc in proj.includes:
                 vim.command("let &l:tags .= ',%s'" % path.join(rootDir, inc['path'], inc['tagsFile']))
+                if addAllTags:
+                    allTagsFile = path.join(rootDir,
+                                            inc['path'],
+                                            inc['allTagsFile'])
+                    vim.command("let &l:tags .= ',%s'" % allTagsFile)
 
             # add imported header tags.
             for dep in proj.depends:

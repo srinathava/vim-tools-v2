@@ -43,7 +43,10 @@ class Project:
         return False
 
     def addInclude(self, path, pattern):
-        self.includes.append({'path': path, 'pattern': pattern, 'tagsFile': '%s.inc.tags' % self.name})
+        self.includes.append({'path': path, 
+                              'pattern': pattern, 
+                              'tagsFile': '%s.inc.tags' % self.name,
+                              'allTagsFile': '%s.all.tags' % self.name})
 
     def addExport(self, path, pattern):
         self.exports.append({'path': path, 'pattern': pattern, 'tagsFile': '%s.exp.tags' % self.name})
