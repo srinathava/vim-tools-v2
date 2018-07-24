@@ -20,7 +20,7 @@ class TagCreator(Thread):
         self.result = ''
 
     def run(self):
-        (curdir, tail) = path.split(sys.argv[0])
+        (curdir, tail) = path.split(path.abspath(sys.argv[0]))
         genDirTags = path.join(curdir, 'genDirTags.py')
         subprocess.call(['python', genDirTags, self.path, self.pattern] + self.extraArgs.split())
 
