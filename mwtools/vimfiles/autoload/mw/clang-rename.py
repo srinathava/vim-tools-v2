@@ -29,7 +29,7 @@ def main():
         print('Current buffer needs to be saved to run refactoring')
         return
 
-    binary = '/mathworks/hub/share/sbtools/external-apps/llvm/llvm-5.0.0/install/deb8-64/bin/clang-rename'
+    binary = '/mathworks/hub/share/sbtools/external-apps/llvm/llvm-7.0.0/install/deb9-64/bin/clang-rename'
 
     # Get arguments for clang-rename binary.
     offset = int(vim.eval('line2byte(line("."))+col(".")')) - 2
