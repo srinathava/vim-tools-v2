@@ -80,10 +80,14 @@ endfunction " }}}
 " GetCurrentTagOrEmpty:  {{{
 " Description: 
 function! GetCurrentTagOrEmpty()
-    let txt = Tlist_Get_Tagname_By_Line()
-    if txt == ''
-        return txt
-    else
-        return '['.txt.']'
-
+    try
+        let txt = Tlist_Get_Tagname_By_Line()
+        if txt == ''
+            return txt
+        else
+            return '['.txt.']'
+        endif
+    catch
+        return ''
+    endtry
 endfunction " }}}

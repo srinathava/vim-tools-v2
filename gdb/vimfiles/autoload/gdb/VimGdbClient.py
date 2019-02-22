@@ -352,6 +352,8 @@ class VimGdbClient:
     # ======================================================
     def gotoCurrentFrame(self):
         out = self.getParsedGdbMiOutput('-stack-info-frame')
+        if not hasattr(out.frame, 'fullname'):
+            return
         file = out.frame.fullname
         line = out.frame.line
         level = out.frame.level
