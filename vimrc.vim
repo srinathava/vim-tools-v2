@@ -58,6 +58,10 @@ function! MW_EvalPython(cmd)
     endif
 endfunction
 
+" TODO: external-apps shouldn't be hardcoded as existing under MW_sbtoolsDir.
+" It should be looked up by using MW_sbtoolsDir/bin/ARCH/_sbscm -echo-external-apps-root
+" If you are importing this vimrc from a local sbtools source tree and it doesn't work, try
+" syncing external-apps using '_sbscm -sync-external-apps'
 call MW_ExecPython('import sys')
 call MW_ExecPython('import os')
 call MW_ExecPython('sys.path += [r"'.s:pytoolspath.'"]')
