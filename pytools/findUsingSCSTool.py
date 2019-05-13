@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import urllib.request, urllib.parse, urllib.error
 from os import path
@@ -13,7 +13,6 @@ FILE_PATTERN = re.compile('file=([^&]+)')
 NUM_FILES_LIMIT = 5000
 
 fileType = '''M
-Model
 Java
 C++
 Fortran
@@ -26,30 +25,33 @@ Makefile
 MTF
 Requirements'''.split()
 
-sourceDir = '''src
-simulink/src
-toolbox
-standalone
-makerules
-rtw
-stateflow
-simulink'''.split()
+sourceDir = '''config
+matlab/makerules
+matlab/platform
+matlab/resources
+matlab/rtw
+matlab/simulink
+matlab/src
+matlab/standalone
+matlab/test
+matlab/toolbox
+matlab/tools/memcheck
+'''.split()
 
 searchTerm = sys.argv[1]
 
 params = urllib.parse.urlencode({'searchTerm': searchTerm, 
                            'searchField': 'TEXT',
-                           'sort': 'PATH',
+                           'sort': 'FILETYPE',
                            'fileType': fileType, 
                            'sourceDir': sourceDir,
-                           'indexId': 17, 
+                           'indexName': 'Bmain', 
                            'indexDir': ''
                            }, True)
 fullurl = 'http://codesearch.mathworks.com:8080/srcsearch/SearchResults.do?%s' % params
-# print fullurl
 f = urllib.request.urlopen(fullurl)
 url_output = f.read()
-# print url_output
+
 fullfiles = []
 
 class MyParser(HTMLParser):
@@ -76,19 +78,11 @@ class MyParser(HTMLParser):
                         raise ValueError("TooManyFiles")
 
 p = MyParser();
-try:
-    p.feed(url_output)
-except:
-    pass
+p.feed(url_output.decode('utf-8'))
 
-fullfiles = set()
-
-p.feed(url_output)
-for filename in p.filenames:
-    fullpath = path.join('matlab', filename)
-    fullfiles.add(fullpath)
+fullfiles = p.filenames
 
 if len(fullfiles) > NUM_FILES_LIMIT:
     print("Too many file matches (%d)!" % len(fullfiles))
 else:
-    print(subprocess.Popen(['grep', '-nH', '-i', searchTerm] + list(fullfiles), stdout=subprocess.PIPE).communicate()[0])
+    print('%s' % subprocess.check_output(['grep', '-nH', '-i', searchTerm] + list(fullfiles)).decode('utf-8'))
