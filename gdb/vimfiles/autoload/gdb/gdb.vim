@@ -660,7 +660,7 @@ function! s:SetBreakPointAt(fname, lnum, prevBps)
         endif
 
         let output = s:GdbGetCommandOutput('break '.fnameTail.':'.a:lnum)
-        if output !~ 'Breakpoint \d\+'
+        if output =~ 'No source file'
             return
         endif
     end
