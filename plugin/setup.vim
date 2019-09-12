@@ -33,8 +33,7 @@ function! MyDiff()
         \  " > " . v:fname_out
 endfunction
 
-let g:MW_rootDir = expand('<sfile>:p:h')
-let g:MW_sbtoolsDir = fnamemodify(g:MW_rootDir, ':h:h')
+let g:MW_rootDir = expand('<sfile>:p:h:h')
 
 let s:pytoolspath = g:MW_rootDir . '/pytools'
 " MW_ExecPython: executes a command in either of python or python3
