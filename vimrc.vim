@@ -10,7 +10,8 @@ set shell=bash " needed by DiffSubmitFile
 
 com! -nargs=0 CD :exec 'cd '.expand('%:p:h')
 
-let $CTAGS_CMD = '/hub/share/sbtools/external-apps/exuberant-ctags/exuberant-ctags-5.9/exuberant-ctags/ctags'
+let s:external_apps = '//mathworks/hub/share/sbtools/external-apps'
+let $CTAGS_CMD = s:external_apps . '/exuberant-ctags/exuberant-ctags-5.9/exuberant-ctags/ctags'
 
 let g:GdbCmd = 'sb -no-debug-backing-stores -debug -gdb-switches --annotate=3 -gdb-switches --args'
 
@@ -58,19 +59,15 @@ function! MW_EvalPython(cmd)
     endif
 endfunction
 
-" TODO: external-apps shouldn't be hardcoded as existing under MW_sbtoolsDir.
-" It should be looked up by using MW_sbtoolsDir/bin/ARCH/_sbscm -echo-external-apps-root
-" If you are importing this vimrc from a local sbtools source tree and it doesn't work, try
-" syncing external-apps using '_sbscm -sync-external-apps'
 call MW_ExecPython('import sys')
 call MW_ExecPython('import os')
 call MW_ExecPython('sys.path += [r"'.s:pytoolspath.'"]')
 call MW_ExecPython('os.environ["PATH"] += (os.pathsep + "'.s:pytoolspath.'")')
 call MW_ExecPython('os.environ["PATH"] += (os.pathsep + "'.s:pytoolspath.'/selecttag")')
 if has('python')
-    call MW_ExecPython('sys.path += [r"'.g:MW_sbtoolsDir.'/external-apps/python/python27/site-packages"]')
+    call MW_ExecPython('sys.path += [r"'.s:external_apps.'/python/python27/site-packages"]')
 elseif has('python3')
-    call MW_ExecPython('sys.path += [r"'.g:MW_sbtoolsDir.'/external-apps/python/python3/site-packages"]')
+    call MW_ExecPython('sys.path += [r"'.s:external_apps.'/python/python3/site-packages"]')
 endif
 
 if has('unix')
