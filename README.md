@@ -19,14 +19,9 @@ Assuming you are using `sbvim` (by sourcing the `sbvim/vimrc`), installing all
 of the tools in this package should be as simple as:
 
 ```vim
-" In vimrc
-packadd vim-tools
+" In vimrc -- note the `!`
+packadd! vim-tools
 ```
 
-If you are not using `sbvim`, you can install this by manually sourcing the
-following file:
-
-```vim
-" In vimrc
-source /path/to/vim-tools/plugin/setup.vim
-```
+Even better -- if you do not _always_ need `vim-tools`, `sbvim` supports lazy
+loading by interactively using `:packadd vim-tools`!

@@ -77,9 +77,9 @@ else
     let $PATH = s:pytoolspath.'/selecttag;'.$PATH
 endif
 
-exec 'set rtp^='.g:MW_rootDir.'/mwtools/vimfiles'
-exec 'set rtp+='.g:MW_rootDir.'/mwtools/vimfiles/after'
+exec 'set packpath+='.g:MW_rootDir
+packadd vim-tools-menu
 
 if has('unix')
-    exec 'set rtp+='.g:MW_rootDir.'/gdb/vimfiles'
+    packadd vim-tools-gdb
 endif
