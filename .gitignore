@@ -1,4 +1,4 @@
 *.tags
-*/vimfiles/doc/tags
+pack/*/*/*/doc/tags
 *.pyc
 __pycache__/
