@@ -28,7 +28,7 @@ call gdb#gdb#Let('GdbShowAsyncOutputWindow', 0)
 call gdb#gdb#Let('GdbFileToRun', '')
 call gdb#gdb#Let('GdbRunOnStart', 1)
 call gdb#gdb#Let('GdbQuitOnProgramFinish', 0)
-call gdb#gdb#Let('GdbLogging', 0)
+call gdb#gdb#Let('GdbLogging', 1)
 call gdb#gdb#Let('GdbCmd', 'gdb')
 
 " ==============================================================================
@@ -97,6 +97,7 @@ function! s:GdbInitWork( )
     " prevent stupid press <return> to continue prompts.
     " call gdb#gdb#RunCommand('set height 0')
     call s:GdbGetCommandOutputSilent('set height 0')
+    call s:GdbGetCommandOutputSilent('set style enabled off')
 
     " If file is given, load it.
     if g:GdbFileToRun != ''

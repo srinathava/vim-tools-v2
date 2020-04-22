@@ -355,6 +355,8 @@ class VimGdbClient:
         if not hasattr(out.frame, 'fullname'):
             return
         file = out.frame.fullname
+        if not os.path.isfile(file):
+            return
         line = out.frame.line
         level = out.frame.level
         # ^done,frame={level="0",addr="0x00002aaab80758c5",func="cdr_transform_driver_pre_core",file="cdr/cdr_transform_driver.cpp",fullname="/mathworks/devel/sandbox/savadhan/Acgirb/matlab/toolbox/stateflow/src/stateflow/cdr/cdr_transform_driver.cpp",line="263"}
