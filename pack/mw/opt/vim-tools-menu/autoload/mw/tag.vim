@@ -10,7 +10,11 @@ call s:InitScript()
 let s:path = expand('<sfile>:p:h')
 " mw#tag#AddSandboxTags: add all tags for a given C/C++ file {{{
 function! mw#tag#AddSandboxTags(fname)
-    let &l:tags = s:.path.'/cpp_std.tags'
+    if empty(&tags)
+        let &l:tags = s:.path.'/cpp_std.tags'
+    else
+        let &l:tags = &tags . ',' . s:.path.'/cpp_std.tags'
+    endif
     call MW_ExecPython('addSandboxTags(r"'.a:fname.'")')
 endfunction " }}}
 " mw#tag#InitVimTags:  {{{
