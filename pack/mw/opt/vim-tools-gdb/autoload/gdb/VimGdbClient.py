@@ -131,6 +131,7 @@ class VimGdbClient:
     def interrupt(self):
         self.newDataTotal = ''
         self.getReply('INT')
+        self.getReply('interrupt')
         return self.newDataTotal
 
     def getCommandOutput(self, cmd):
@@ -363,6 +364,8 @@ class VimGdbClient:
 
         vim.eval('gdb#gdb#RefreshStackPtr(%d)' % level)
         vim.eval('gdb#gdb#PlaceSign("%s", %d)' % (file, line))
+        vim.eval('foreground()')
+        vim.command('redraw')
 
     def expandStack(self, num, skipUnknownFrames=True):
 

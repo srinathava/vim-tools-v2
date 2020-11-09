@@ -68,6 +68,7 @@ if has('python')
 elseif has('python3')
     call MW_ExecPython('sys.path += [r"'.s:external_apps.'/python/python3/site-packages"]')
 endif
+call MW_ExecPython('os.environ["MW_VIM_TOOLS_ROOT"] = "'.g:MW_rootDir.'"')
 
 if has('unix')
     let $PATH = s:pytoolspath.':'.$PATH
@@ -81,5 +82,9 @@ exec 'set packpath+='.g:MW_rootDir
 packadd vim-tools-menu
 
 if has('unix')
-    packadd vim-tools-gdb
+    if exists('g:gdb_use_termdebug') && g:gdb_use_termdebug
+        packadd vim-tools-termdebug
+    else
+        packadd vim-tools-gdb
+    endif
 endif

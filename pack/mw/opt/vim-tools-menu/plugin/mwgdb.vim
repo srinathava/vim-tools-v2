@@ -7,27 +7,17 @@ call MW_ExecPython("sys.path += [r'".s:scriptDir."']")
 call MW_ExecPython("from startMatlab import startMatlab")
 
 function! MW_AttachToMatlab(pid, mode)
-    call gdb#gdb#Init()
-
-    let rootDir = mw#utils#GetRootDir()
-    if rootDir != ""
-        call gdb#gdb#RunCommand('source '.rootDir.'/.sbtools/sb-debug/source-path.gdbinit')
-    endif
+    InitGdb
 
     if a:mode == '-nojvm'
-        call gdb#gdb#RunCommand('handle SIGSEGV stop print')
+        GDB handle SIGSEGV stop print
     else
-        call gdb#gdb#RunCommand('handle SIGSEGV nostop noprint')
+        GDB handle SIGSEGV nostop noprint
     endif
 
-    call gdb#gdb#Attach(a:pid)
+    exec 'GDB attach '.a:pid
 
-    " set a bunch of standard breakpoints
-    call gdb#gdb#SetQueryAnswer('y')
-    call gdb#gdb#RunCommand('bex')
-    call gdb#gdb#SetQueryAnswer('')
-
-    call gdb#gdb#Continue()
+    exec 'GDB continue'
 endfunction " }}}
 
 " MW_StartMatlabWithCustomCmdLineArgs{{{
@@ -122,20 +112,10 @@ function! MW_DebugUnitTests(what)
         return
     end
 
-    call gdb#gdb#Init()
+    InitGdb
 
-    " This ensures that the debugger breaks in our local sandbox files and
-    " not in /devel/Aslrtw/build etc.
-    call gdb#gdb#RunCommand('source '.sbrootDir.'/.sbtools/sb-debug/source-path.gdbinit')
-    
-    call gdb#gdb#RunCommand("file ".testPath)
-
-    " :cd to the project directory in GDB so that we can resolve relative
-    " paths in the unit test executable.
-    call gdb#gdb#RunCommand("cd ".projDir)
-
-    " Read in all the breakpoints which have already been set.
-    call gdb#gdb#RedoAllBreakpoints()
+    exec 'GDB file '.testPath
+    exec 'GDB cd '.projDir
 endfunction " }}}
 
 command! MWDebug :call MW_StartMatlab(1, <f-args>)

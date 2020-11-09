@@ -228,11 +228,6 @@ function! s:RestoreUserMaps()
         au!
     augroup END
 endfunction " }}}
-" s:CreateEofSignForBuffer:  {{{
-" Description: 
-function! s:CreateEofSignForBuffer()
-    <+function body+>
-endfunction " }}}
 " gdb#gdb#CreateEofSign:  {{{
 " Description: 
 function! gdb#gdb#CreateEofSign()
@@ -359,9 +354,6 @@ function! gdb#gdb#OnResume()
 
     exec bufwinnr(bufnum).' wincmd w'
     call setpos('.', pos)
-
-    call foreground()
-    redraw
 endfunction " }}}
 " gdb#gdb#GetQueryAnswer:  {{{
 " Description: 
@@ -469,6 +461,7 @@ function! gdb#gdb#PlaceSign(file, lnum)
     " Now goto the correct cursor location and place the sign.
     call cursor(a:lnum, 1)
     exec 'sign place 1 name=gdbCurFrame line='.a:lnum.' file='.a:file
+    setlocal signcolumn=yes
 endfunction " }}}
 " gdb#gdb#IsBusy: tells if inferior program is running {{{
 " Description: 
@@ -831,7 +824,7 @@ function! s:GetPidFromName(name)
         end
     end
 endfunction " }}}
-function! gdb#gdb#Attach(pid)
+function! gdb#gdb#Attach(pid, method)
     let pid = a:pid
     if pid == ''
         let input = input('Enter the PID or process name to attach to :')
@@ -849,7 +842,7 @@ function! gdb#gdb#Attach(pid)
     if s:gdbStarted == 0
         call s:GdbInitWork()
     endif
-    call gdb#gdb#RunCommand('attach '.pid)
+    call gdb#gdb#RunCommand(a:method.' '.pid)
     call gdb#gdb#RedoAllBreakpoints()
 endfunction " }}}
 " gdb#gdb#ResumeProgram: gives control back to the inferior program {{{

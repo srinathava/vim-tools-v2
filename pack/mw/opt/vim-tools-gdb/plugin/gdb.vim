@@ -33,7 +33,8 @@ if has('gui_running')
 
     amenu &Gdb.-sep2- <Nop>
 
-    amenu &Gdb.&Attach :call gdb#gdb#Attach('')<CR>
+    amenu &Gdb.&Attach :call gdb#gdb#Attach('', 'attach')<CR>
+    amenu &Gdb.&Quick\ Attach :call gdb#gdb#Attach('', 'quick_attach_sf')<CR>
 
     amenu &Gdb.-sep3- <Nop>
 
@@ -51,6 +52,7 @@ endif
 
 nmap <F9>      :call gdb#gdb#ToggleBreakPoint()<CR>
 
+com! -nargs=0 InitGdb :call gdb#gdb#Init()
 com! -nargs=1 GDB :call gdb#gdb#RunOrResume(<q-args>)
 com! -nargs=? GDBEX :call gdb#gdb#AddGdbVar(<q-args>)
 
