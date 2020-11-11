@@ -1,13 +1,15 @@
-" TermdebugCurrentLocation: gets the location for setting breakpoints {{{
-function! TermdebugCurrentLocation()
-    let filepath = expand('%:p')
+" TermdebugFilenameModifier: modifies the file name for setting breakpoints {{{
+"Description: 
+function! TermdebugFilenameModifier(filepath)
+    let filepath = a:filepath
+
     let sbroot = findfile('mw_anchor', filepath.';')
     if sbroot != ''
         let sbroot = fnamemodify(sbroot, ':p:h')
         let mlroot = sbroot . '/matlab/'
         let filepath = filepath[strlen(mlroot):]
     endif
-    return fnameescape(filepath) . ':' . line('.')
+    return fnameescape(filepath)
 endfunction " }}}
 " TermDebugGdbCmd: return full gdb command {{{
 " Description: 
@@ -142,7 +144,8 @@ let s:termdebug_status = 'stopped'
 function! s:OnTermDebugStarted()
     let bps = s:GetAllBreakPoints()
     for bp in bps
-        call TermDebugSendCommand("break ".bp['fname'].':'.bp['lnum'])
+        let fname = TermdebugFilenameModifier(bp['fname'])
+        call TermDebugSendCommand("break ".fname.':'.bp['lnum'])
     endfor
     call sign_unplace('TermDebugPendingBreakpoints')
 

@@ -866,8 +866,8 @@ func! s:LocationCmd(at, cmd)
   endif
   if !empty(a:at)
     let at = a:at
-  elseif exists('*TermdebugCurrentLocation')
-    let at = TermdebugCurrentLocation()
+  elseif exists('*TermdebugFilenameModifier')
+    let at = TermdebugFilenameModifier(expand('%:p')) . ':' . line('.')
   else
     " Use the fname:lnum format, older gdb can't handle --source.
     let at = fnameescape(expand('%:p')) . ':' . line('.')
@@ -1409,7 +1409,11 @@ func! s:HandleBreakpointInfo(msg)
   for [id, entries] in items(s:breakpoints)
     if id > num
       for [subid, entry] in items(entries)
-	let locations += [entry['fname'].':'.entry['lnum']]
+	let filename = entry['fname']
+	if exists('*TermdebugFilenameModifier')
+	  let filename = TermdebugFilenameModifier(filename)
+	endif
+	let locations += [filename.':'.entry['lnum']]
       endfor
     endif
   endfor
