@@ -200,7 +200,7 @@ func! s:InstallMaps()
   call s:CreateMap('D',       ':GDB down<CR>', 'n')
   call s:CreateMap('<F9>',    ':ToggleBreakpoint<CR>', 'n')
   call s:CreateMap('<C-P>',   ":exec 'GDB print '.expand('<cword>')<CR>", 'n')
-  call s:CreateMap('<C-P>',   'y:GDB print <C-R>""<CR>', 'v')
+  call s:CreateMap('<C-P>',   'y:GDB print <C-R>"<CR>', 'v')
 endfunction " }}}
 " s:RestoreMaps: restores user maps {{{
 function! s:RestoreMaps()
