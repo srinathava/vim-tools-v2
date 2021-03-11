@@ -409,6 +409,10 @@ function! <SID>CloseDiffWindows()
     endif
 endfunction
 
+let g:DirDiffLog = ''
+function! <SID>Log(msg)
+    let g:DirDiffLog = g:DirDiffLog . a:msg . "\n"
+endfunction
 
 function! <SID>DirDiffOpen()
     " First dehighlight the last marked
@@ -422,9 +426,11 @@ function! <SID>DirDiffOpen()
     let dirA = <SID>GetBaseDir("A")
     let dirB = <SID>GetBaseDir("B")
 
-    call <SID>CloseDiffWindows()
+    wincmd o
+    " call <SID>CloseDiffWindows()
 
     let line = getline(".")
+    call s:Log('current line = '.line)
     " Parse the line and see whether it's a "Only in" or "Files Differ"
     call <SID>HighlightLine()
     let fileA = <SID>GetFileNameFromLine("A", line)
@@ -450,6 +456,7 @@ function! <SID>DirDiffOpen()
         "Open the diff windows
         split
         wincmd k
+        call s:Log('fileA = '.fileA.', fileB = '.fileB)
         silent exec "edit ".fileB
         silent exec "vert diffsplit ".fileA
         " Go back to the diff window

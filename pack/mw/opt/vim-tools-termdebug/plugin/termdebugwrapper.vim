@@ -17,7 +17,7 @@ function! TermDebugGdbCmd(pty)
     let mw_anchor_loc = findfile('mw_anchor', '.;')
     if mw_anchor_loc != ''
         let sbroot = fnamemodify(mw_anchor_loc, ':h')
-        return split('sb -s '.sbroot.' -debug -no-debug-backing-stores', ' ')
+        return split('sb -s '.sbroot.' -debug -no-debug-backing-stores -gdb-switches -quiet', ' ')
     else
         return ['sbgdb']
     endif

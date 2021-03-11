@@ -114,8 +114,11 @@ function! MW_DebugUnitTests(what)
 
     InitGdb
 
-    exec 'GDB file '.testPath
-    exec 'GDB cd '.projDir
+    " The server prefix makes GDB not ask for confirmation about loading
+    " symbols from the file. That confirmation request makes the next cd
+    " command silently fail.
+    exec 'GDB server file '.testPath
+    exec 'GDB server cd '.projDir
 endfunction " }}}
 
 command! MWDebug :call MW_StartMatlab(1, <f-args>)
