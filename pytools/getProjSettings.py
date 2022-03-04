@@ -95,6 +95,12 @@ def handleModule(dom):
     proj.addInclude(modPath, incPattern)
     proj.addExport(path.join(modPath, 'export'), '*.hpp *.h')
 
+    derivedSrc = modPath.replace('matlab/', 'matlab/derived/glnxa64/')
+    derivedInc = 'matlab/derived/glnxa64/src/include/' + name
+
+    proj.addInclude(derivedSrc, '*.[ch]pp *.c')
+    proj.addExport(derivedInc, '*.hpp *.h')
+
     return proj
 
 def addModuleDependencies(modules, rootDir):
