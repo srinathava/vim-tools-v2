@@ -503,16 +503,11 @@ func TermDebugSendCommand(cmd)
   if s:way == 'prompt'
     call ch_sendraw(s:gdb_channel, a:cmd . "\n")
   else
-    let do_continue = 0
     if !s:stopped
-      let do_continue = 1
       call s:SendCommand('-exec-interrupt')
       sleep 10m
     endif
     call term_sendkeys(s:gdbbuf, a:cmd . "\r")
-    if do_continue
-      Continue
-    endif
   endif
 endfunc
 
