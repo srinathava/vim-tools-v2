@@ -46,3 +46,17 @@ function! mw#perforce#AddFileToPerforce(fileName)
     let cmd = s:scriptDir.'/addToPerforce.py '.a:fileName.' &'
     call system(cmd)
 endfunction " }}}
+" mw#perforce#RealEditsFile: opens realedits page for a file {{{
+" Description: 
+function! mw#perforce#RealEditsFile(fileName)
+    if !mw#perforce#IsInPerforceSandbox(a:fileName)
+        return
+    endif
+    
+    let presRoot = mw#utils#GetRootDir()
+    let relPath = strpart(a:fileName, strlen(presRoot)+1)
+    echo relPath
+
+    let cmd = 'python -m webbrowser http://p4db/cgi-bin/realEdits/showfile.cgi?f="'.relPath.'"'
+    call system(cmd)
+endfunction " }}}

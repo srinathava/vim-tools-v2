@@ -96,4 +96,7 @@ amenu &Mathworks.-sep4- <Nop>
 amenu &Mathworks.Sa&ve\ Current\ Session        :call mw#sbtools#SaveSession()<CR>
 amenu &Mathworks.&Load\ Saved\ Session          :call mw#sbtools#LoadSession()<CR>
 
+amenu &Mathworks.-sep5- <Nop>
+amenu &Mathworks.P&4V.&RealEdits          :call mw#perforce#RealEditsFile(expand('%:p'))<CR>
+
 " vim: fdm=marker
