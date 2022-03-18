@@ -1234,7 +1234,7 @@ func s:HandleCursor(msg)
   if a:msg =~ '^\*stopped'
     call ch_log('program stopped')
     let s:stopped = 1
-  elseif a:msg =~ '^\*running'
+  elseif a:msg =~ '^\*running,thread-id="all"'
     call ch_log('program running')
     let s:stopped = 0
   endif
