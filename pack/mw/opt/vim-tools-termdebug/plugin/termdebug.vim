@@ -808,8 +808,7 @@ endfunc
 func s:ClearBreakpointInfo()
   for [id, entries] in items(s:breakpoints)
     for subid in keys(entries)
-      call s:Debug('unplacing sign')
-      exe 'sign unplace ' . s:Breakpoint2SignNumber(id, subid)
+      call s:UnplaceBreakpointSign(id, subid)
     endfor
   endfor
   let s:breakpoints = {}
@@ -915,6 +914,10 @@ func s:SetBreakpoint(at)
   call s:LocationCmd(a:at, 'break')
 endfunc
 
+func s:UnplaceBreakpointSign(id, subid)
+   exe 'sign unplace ' . s:Breakpoint2SignNumber(a:id, a:subid).' group=TermDebugBreakpoints'
+endfunc
+
 " :Clear - Delete a breakpoint at the cursor position.
 func s:ClearBreakpoint()
   let fname = fnameescape(expand('%:p'))
@@ -927,7 +930,7 @@ func s:ClearBreakpoint()
 	" Assume this always works, the reply is simply "^done".
 	call s:SendCommand('-break-delete ' . id)
 	for subid in keys(s:breakpoints[id])
-	  exe 'sign unplace ' . s:Breakpoint2SignNumber(id, subid)
+	  call s:UnplaceBreakpointSign(id, subid)
 	endfor
 	unlet s:breakpoints[id]
 	unlet s:breakpoint_locations[bploc][idx]
@@ -1373,8 +1376,12 @@ endfunc
 
 func s:PlaceSign(id, subid, entry)
   let nr = printf('%d.%d', a:id, a:subid)
-  call s:Debug('sign place ' . s:Breakpoint2SignNumber(a:id, a:subid) . ' line=' . a:entry['lnum'] . ' name=debugBreakpoint' . nr . ' file=' . a:entry['fname'])
-  exe 'sign place ' . s:Breakpoint2SignNumber(a:id, a:subid) . ' line=' . a:entry['lnum'] . ' name=debugBreakpoint' . nr . ' file=' . a:entry['fname']
+  let signId = s:Breakpoint2SignNumber(a:id, a:subid)
+  call sign_place(signId, 
+	      \ 'TermDebugBreakpoints', 'debugBreakpoint'.nr, a:entry['fname'], {
+	      \ 'lnum': a:entry['lnum'],
+	      \ })
+
   let a:entry['placed'] = 1
 endfunc
 
@@ -1384,7 +1391,7 @@ func s:DeleteBreakpoint(id)
     for [subid, entry] in items(s:breakpoints[a:id])
 
       if has_key(entry, 'placed')
-	exe 'sign unplace ' . s:Breakpoint2SignNumber(a:id, subid)
+	call s:UnplaceBreakpointSign(a:id, subid)
 	unlet entry['placed']
       endif
 
@@ -1423,6 +1430,7 @@ func s:RestoreBreakpoints()
 endfunc
 
 func s:HandleBreakpointInfo(msg)
+  call s:Debug("Getting to HandleBreakpointInfo ".a:msg)
   let startpos = 0
 
   let num = 0

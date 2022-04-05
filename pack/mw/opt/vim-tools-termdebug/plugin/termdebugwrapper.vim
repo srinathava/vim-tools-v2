@@ -112,10 +112,22 @@ sign define debugBreakpointPending text=? texthl=debugBreakpointPending
 " Description: 
 let s:numBreakpoints = 0
 function! s:ToggleBreakpoint()
+    let setBpInfo = sign_getplaced(bufname(), {'group': 'TermDebugBreakpoints', 'lnum': line('.')})
+
+    if !empty(setBpInfo[0]['signs'])
+        " There's already a breakpoint set by core termdebug. Let it handle
+        " toggling the breakpoint
+        ToggleBreakpoint
+        return
+    endif
+
     let info = sign_getplaced(bufname(), {'group': 'TermDebugPendingBreakpoints', 'lnum': line('.')})
     if empty(info[0]['signs'])
 
-        exec 'sign place '.(s:numBreakpoints + 1).' group=TermDebugPendingBreakpoints name=debugBreakpointPending line='.line('.').' file='.fnameescape(expand('%:p'))
+        call sign_place(s:numBreakpoints+1, 
+                    \ 'TermDebugPendingBreakpoints', 'debugBreakpointPending', '%', {
+                    \ 'lnum': line('.'),
+                    \ })
         let s:numBreakpoints += 1
     else
         echomsg info
@@ -144,6 +156,7 @@ let s:termdebug_status = 'stopped'
 function! s:OnTermDebugStarted()
     let bps = s:GetAllBreakPoints()
     for bp in bps
+        call s:Debug("OnTermDebugStarted: restoring breakpoint")
         let fname = TermdebugFilenameModifier(bp['fname'])
         call TermDebugSendCommand("break ".fname.':'.bp['lnum'])
     endfor
@@ -219,13 +232,11 @@ endfunction " }}}
 let g:termdebug_separate_tty = 0
 let g:termdebug_persist_breakpoints = 1
 let g:termdebug_install_maps = 1
-let g:termdebug_install_winbar = 0
 let g:termdebugger = 'sbgdb'
 let g:termdebug_popup = 0
+let g:termdebug_install_winbar = 0
 
 command! -nargs=0 InitGdb Termdebug
-" let s:scriptDir = expand('<sfile>:p:h')
-" exec 'source '.s:scriptDir.'/termdebug.vim'
 
 " s:InstallRuntimeMenuItem:  {{{
 " Description: 
@@ -296,3 +307,7 @@ if has('gui_running')
     call s:InstallRuntimeMenuItems()
     call s:DisableRuntimeMenuItems()
 endif
+
+func s:Debug(msg)
+  exec "pyx log(r'''".a:msg."''')"
+endfunction
