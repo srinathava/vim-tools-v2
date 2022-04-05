@@ -73,9 +73,9 @@ function! MW_DebugUnitTests(what)
         let fileDirRelPathToProj = strpart(expand('%:p:h'), len(projDir) + 1)
         let testName = substitute(fileDirRelPathToProj, '/', '_', 'g')
     elseif a:what == 'unit'
-        let testName = 'unittest'
+        let testName = '*unittest'
     elseif a:what == 'pkg'
-        let testName = 'pkgtest'
+        let testName = '*pkgtest'
     endif
 
     let sbrootDir = mw#utils#GetRootDir()
@@ -86,7 +86,7 @@ function! MW_DebugUnitTests(what)
     let projRelPathToMlRoot = strpart(projDir, len(mlroot) + 1)
 
     let testBinDir = mlroot.'/derived/glnxa64/testbin/'.projRelPathToMlRoot
-    let testPath = testBinDir.'/*'.testName
+    let testPath = testBinDir.'/'.testName
 
     let testFiles = split(glob(testPath))
     if len(testFiles) > 1
@@ -117,8 +117,30 @@ function! MW_DebugUnitTests(what)
     " The server prefix makes GDB not ask for confirmation about loading
     " symbols from the file. That confirmation request makes the next cd
     " command silently fail.
+    exec 'GDB server handle SIGSEGV stop print'
     exec 'GDB server file '.testPath
     exec 'GDB server cd '.projDir
+endfunction " }}}
+" MW_DebugCurrentTestPoint:  {{{
+" Description: 
+function! MW_DebugCurrentTestPoint()
+    let pattern = '^\s*\w*TEST\s*(\s*\(\w\+\)\s*,\s*\(\w\+\)'
+    let [lnum, colnum] = searchpos(pattern, 'bn')
+    if lnum == 0
+        echohl Error
+        echomsg "No unit test found"
+        echohl None
+        return
+    endif
+
+    let txt = getline(lnum)
+    let matches = matchlist(txt, pattern)
+    let unitTestName = matches[1].'.'.matches[2]
+
+    call MW_DebugUnitTests('current')
+
+    echomsg 'GDB server quick_start_unit --gtest_filter='.unitTestName
+    exec 'GDB server quick_start_unit --gtest_filter='.unitTestName
 endfunction " }}}
 
 command! MWDebug :call MW_StartMatlab(1, <f-args>)
@@ -131,6 +153,7 @@ amenu &Mathworks.&Debug.&Attach\ to\ MATLAB         :call MW_AttachToMatlab('MAT
 amenu &Mathworks.&Debug.&current\ unit/pkgtest   :call MW_DebugUnitTests('current')<CR>
 amenu &Mathworks.&Debug.&unittest                :call MW_DebugUnitTests('unit')<CR>
 amenu &Mathworks.&Debug.&pkgtest                 :call MW_DebugUnitTests('pkg')<CR>
+amenu &Mathworks.&Debug.Current\ &Test\ Point     :call MW_DebugCurrentTestPoint()<CR>
 
 amenu &Mathworks.&Run.&1\ MATLAB\ -nojvm        :call MW_StartMatlab(0, '-nojvm')<CR>
 amenu &Mathworks.&Run.&2\ MATLAB\ -nodesktop    :call MW_StartMatlab(0, '-nodesktop -nosplash')<CR>

@@ -1,5 +1,4 @@
 set efm=
-
 " A bunch of warnings which are benign.
 let &efm .= '%-G%.%#UNIX_CXX_TEMP_DIR%.%#'
 let &efm .= ',%-G%.%#undefined\ variable\ `DEBUG_FLAG%.%#'
@@ -16,6 +15,7 @@ let &efm .= ',%-G%.%#Running\ build%.%#'
 let &efm .= ',%-G%.%#is\ obsolete%.%#'
 let &efm .= ',%-G%.%#include\ path\ is\ out-of-model%.%#'
 let &efm .= ',%-G%.%#compflags\.gnu%.%#'
+let &efm .= ',%-GSwimlane\ %.%#'
 let &efm .= ',%-GSBT%.%#'
 let &efm .= ',%-GCompiling\ %.%#'
 let &efm .= ',%-GThe\ makefile\ %.%#'
@@ -27,24 +27,22 @@ let &efm .= ',%-GWarning\ level\ %.%#'
 let &efm .= ',%-Gdistcc[%.%#'
 let &efm .= ',%-W%.%#compflags\.gnu%.%#'
 let &efm .= ',%+GIn file included from %f:%l:%c%.%#'
+let &efm .= ',%+Ggmake: *** [%f:%l:%m'
 let &efm .= ',%.%#from\ %f:%l%.%#,'
 let &efm .= ',%f:\ In\ function\ %.%#=%m'
 let &efm .= ',%*[^"]"%f"%*\D%l: %m'
 let &efm .= ',"%f"%*\D%l: %m'
 let &efm .= ',%-G%f:%l: (Each undeclared identifier is reported only once'
 let &efm .= ',%-G%f:%l: for each function it appears in.)'
+let &efm .= ',%+G%.%# Saving results in %f'
 let &efm .= ',%f:%l:%c:%m'
 let &efm .= ',%f:%l'
 let &efm .= ',%f(%l):%m,%f:%l:%m,"%f"\, line %l%*\D%c%*[^ ] %m'
-let &efm .= ',%-D%*\a[%*\d]: Entering directory `%f'."'"
-let &efm .= ',%-D%*\a: Entering directory `%f'."'"
-" let &efm .= ',%-X%*\a[%*\d]: Leaving directory `%f'."'"
-" let &efm .= ',%-X%*\a: Leaving directory `%f'."'"
-" let &efm .= ',%-G%*\a[%*\d]: Entering directory `%f'."'"
-" let &efm .= ',%-G%*\a: Entering directory `%f'."'"
-let &efm .= ',%-G%*\a[%*\d]: Leaving directory `%f'."'"
-let &efm .= ',%-G%*\a: Leaving directory `%f'."'"
+" comes from sbmake 
+let &efm .= ",%Dgmake: Entering directory '%f'"
+let &efm .= ",%Xgmake: Leaving directory '%f'"
+" Comes from sbcc
+let &efm .= ",%Dgmake: Entering directory `%f'"
+let &efm .= ",%Xgmake: Leaving directory `%f'"
 let &efm .= ',%-DMaking %*\a in %f'
 let &efm .= ',%f|%l| %m '
-" let &efm .= ',%-G%.%#'
-

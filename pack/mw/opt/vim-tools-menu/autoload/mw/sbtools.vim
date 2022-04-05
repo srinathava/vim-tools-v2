@@ -275,49 +275,70 @@ function! mw#sbtools#SetCompileLevelForFile()
 endfunction " }}}
 " s:SetProjectMakePrg: sets the 'makeprg' option for the current buffer {{{
 let g:MWDebug = 1
-function! s:SetProjectMakeProgram()
+function! s:GetProjectMakeProgram()
+    let cdPath = s:GetModulePath()
+
     if g:MWProjectCompileLevel == 1
         "1. Build source only"
-        let &l:makeprg = 'sbmake  -distcc NOBUILDTESTS=1 NORUNTESTS=1 DEBUG=1'
+        return 'sbmake -C '.  cdPath .  '  -distcc NOBUILDTESTS=1 NORUNTESTS=1 DEBUG=1'
     elseif g:MWProjectCompileLevel == 2
         "2. Build source and test"
-        let &l:makeprg = 'sbmake  -distcc NORUNTESTS=1 DEBUG=1'
+        return 'sbmake  -C '.  cdPath .  ' -distcc NORUNTESTS=1 DEBUG=1'
     elseif g:MWProjectCompileLevel == 3
         "3. Build and run tests"
-        let &l:makeprg = 'sbmake  -distcc DEBUG=1'
+        return 'sbmake  -C '.  cdPath .  ' -distcc DEBUG=1'
     elseif g:MWProjectCompileLevel == 4
         "4. Build for coverage"
-        let &l:makeprg = 'sbmake  BCOV=1 -j 9 DEBUG=1'
+        return 'sbmake -C '.  cdPath .  '  BCOV=1 -j 9 DEBUG=1'
     elseif g:MWProjectCompileLevel == 5
         "5. Custom compile (specified using g:MWCustomCompile)'])
-        let &l:makeprg = g:MWCustomCompile
+        return g:MWCustomCompile
     else
-        let &l:makeprg = 'sbmake -distcc' "ERROR?"
+        return 'sbmake -distcc' "ERROR?"
     endif
 endfunction " }}}
+function! s:GetModulePath()
+    let filePath = expand('%:p:h')
+
+    let modDepFilePath = findfile('MODULE_DEPENDENCIES', filePath.';')
+    if modDepFilePath != ''
+        return fnamemodify(modDepFilePath, ':p:h')
+    elseif filePath =~ 'matlab/toolbox/stateflow/src'
+        return matchstr(filePath, '^.*toolbox/stateflow/src')
+    elseif filePath =~ 'matlab/src'
+        return matchstr(filePath, '^.*matlab/src/\w\+')
+    else
+        echohl ErrorMsg
+        echomsg "Do not know how to handle current file"
+        echohl None
+        return
+    end
+endfunction " }}}
+
+
 " s:SetFileMakePrg: sets the 'makeprg' option for the current buffer {{{
-function! s:SetFileMakeProgram(fileToBuild)
+function! s:GetFileMakeProgram(fileToBuild)
     if g:MWFileCompileLevel == 1
         "1. Mixed compile (sbcc -cc MIXED@DEFAULT)"
-        let &l:makeprg = 'sbcc -cc MIXED@DEFAULT ' . a:fileToBuild
+        return 'sbcc -cc MIXED@DEFAULT ' . a:fileToBuild
     elseif g:MWFileCompileLevel == 2
         "2. Debug compile (sbcc -dc)"
-        let &l:makeprg = 'sbcc -dc ' . a:fileToBuild
+        return 'sbcc -dc ' . a:fileToBuild
     elseif g:MWFileCompileLevel == 3
         "3. Release compile (sbcc -rc)"
-        let &l:makeprg = 'sbcc -rc ' . a:fileToBuild
+        return 'sbcc -rc ' . a:fileToBuild
     elseif g:MWFileCompileLevel == 4
         "4. Multi-compile (sbcc -standard)"
-        let &l:makeprg = 'sbcc -standard ' . a:fileToBuild
+        return 'sbcc -standard ' . a:fileToBuild
     elseif g:MWFileCompileLevel == 5
         "5. Polyspace bug finder (sbcc -polyspace RELEASE)"
-        let &l:makeprg = 'sbcc -polyspace RELEASE ' . a:fileToBuild
+        return 'sbcc -polyspace RELEASE ' . a:fileToBuild
     elseif g:MWFileCompileLevel == 6
         "6. Lint only mode (sbcc -lint RELEASE)"
-        let &l:makeprg = 'sbcc -lint RELEASE ' . a:fileToBuild
+        return 'sbcc -lint RELEASE ' . a:fileToBuild
     elseif g:MWFileCompileLevel == 7
         "7. Minimize includes (not yet supported)"
-        let &l:makeprg = 'sbmininclude ' . a:fileToBuild
+        return 'sbmininclude ' . a:fileToBuild
     endif
 endfunction " }}}
 " mw#sbtools#GetCurrentProjDir {{{
@@ -330,55 +351,67 @@ function! mw#sbtools#GetCurrentProjDir()
     return projDir
 endfunction
 " }}}
-" mw#sbtools#CompileProject: compiles the present flag {{{
-function! mw#sbtools#CompileProject()
-    let olddir = getcwd()
-    let filePath = expand('%:p:h')
 
-    let modDepFilePath = findfile('MODULE_DEPENDENCIES', filePath.';')
-    if modDepFilePath != ''
-        exec 'cd '.fnamemodify(modDepFilePath, ':p:h')
-    elseif filePath =~ 'matlab/toolbox/stateflow/src'
-        exec 'cd '.matchstr(filePath, '^.*toolbox/stateflow/src')
-    elseif filePath =~ 'matlab/src'
-        exec 'cd '.matchstr(filePath, '^.*matlab/src/\w\+')
-    else
-        echohl ErrorMsg
-        echomsg "Do not know how to handle current file"
-        echohl None
+" s:HandleBuildResults:  {{{
+" Description: 
+function! s:HandleBuildResults(job, status)
+    let &termwinsize = s:old_termwinsize
+
+    if job_info(a:job)['exitval'] == 0
         return
-    end
-    let oldMakePrg = &l:makeprg
-    call s:SetProjectMakeProgram()
-    make!
-    let &l:makeprg = oldMakePrg
+    endif
+
+    let curpos = getcurpos()
+    let curbuf = bufnr('%')
+
+    exec 'cgetbuffer '.s:term_buf
     cwindow
 
+    exec 'bdelete '.s:term_buf
+    silent! crewind
+    silent! cnext
+
+    if s:term_buf != curbuf
+        exec bufwinnr(curbuf).' wincmd w'
+        call setpos('.', curpos)
+    endif
+
+    redraw!
+endfunction " }}}
+function s:ParseBuildResults(job, status)
+    call timer_start(500, {timer -> s:HandleBuildResults(a:job, a:status)})
+endfunction
+
+" mw#sbtools#CompileProject: compiles the present flag {{{
+let s:term_buf = -1
+function! mw#sbtools#CompileProject()
+    let cdPath = s:GetModulePath()
+    cclose
+    exec 'silent! bdelete '.s:term_buf
+    let s:old_termwinsize = &termwinsize
+    let &termwinsize = '10*1000'
+    bot let s:term_buf = term_start(s:GetProjectMakeProgram(), {
+                \ "cwd": cdPath, 
+                \ "term_name": "sbmake term",
+                \ "exit_cb": function('s:ParseBuildResults')})
     if expand('%:p') != ''
         exec 'silent! !genVimTags.py '.expand('%:p').' &'
     endif
-
-    exec 'cd '.olddir
 endfunction 
 " }}}
 " mw#sbtools#CompileFile: compiles present file {{{
 " Description: 
 function! mw#sbtools#CompileFile()
-    let olddir = getcwd()
+    let cdPath = s:GetModulePath()
+    cclose
+    exec 'silent! bdelete '.s:term_buf
+    let s:old_termwinsize = &termwinsize
+    let &termwinsize = '10*1000'
+    bot let s:term_buf = term_start(s:GetFileMakeProgram(expand('%:p')), {
+                \ "cwd": cdPath, 
+                \ "term_name": "sbmake term",
+                \ "exit_cb": function('s:ParseBuildResults')})
 
-    let noLint    =  " -skip 'lint RELEASE noreason'"
-    let noRelease =  " -skip 'compile RELEASE noreason'"
-    let noDebug   =  " -skip 'compile DEBUG noreason'"
-
-    exec 'cd '.expand('%:p:h')
-
-    let oldMakePrg = &l:makeprg
-    call s:SetFileMakeProgram(expand('%:p'))
-    make!
-    let &l:makeprg = oldMakePrg
-    cwindow
-
-    exec 'cd '.olddir
 endfunction 
 " }}}
 " mw#sbtools#BuildUsingDas:  {{{
