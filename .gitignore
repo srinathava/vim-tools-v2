@@ -2,3 +2,5 @@
 pack/*/*/*/doc/tags
 *.pyc
 __pycache__/
+.ccls-cache/
+.gdb_history

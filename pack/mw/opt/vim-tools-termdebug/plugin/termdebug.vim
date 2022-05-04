@@ -41,7 +41,7 @@ endif
 
 " Need either the +terminal feature or +channel and the prompt buffer.
 " The terminal feature does not work with gdb on win32.
-if has('terminal') && !has('win32')
+if (has('nvim') || has('terminal')) && !has('win32')
   let s:way = 'terminal'
 elseif has('channel') && exists('*prompt_setprompt')
   let s:way = 'prompt'
@@ -70,8 +70,13 @@ if !exists('g:termdebugger')
 endif
 
 let s:pc_id = 12
+let s:asm_id = 13
 let s:break_id = 13  " breakpoint number is added to this
 let s:stopped = 1
+
+let s:parsing_disasm_msg = 0
+let s:asm_lines = []
+let s:asm_addr = ''
 
 let s:path = expand('<sfile>:p:h')
 exec 'pyxfile '.s:path.'/init_logging.py'
@@ -123,6 +128,11 @@ func s:StartDebug_internal(dict)
 
   let s:ptywin = 0
   let s:pid = 0
+  let s:asmwin = 0
+
+  if exists('#User#TermdebugStartPre')
+    doauto <nomodeline> User TermdebugStartPre
+  endif
 
   " Uncomment this line to write logging in "debuglog".
   " call ch_logfile('debuglog', 'w')
@@ -151,7 +161,7 @@ func s:StartDebug_internal(dict)
 
   " Override using a terminal window by setting g:termdebug_use_prompt to 1.
   let use_prompt = exists('g:termdebug_use_prompt') && g:termdebug_use_prompt
-  if has('terminal') && !has('win32') && !use_prompt
+  if (has('nvim') || has('terminal')) && !has('win32') && !use_prompt
     let s:way = 'terminal'
   else
     let s:way = 'prompt'
@@ -162,13 +172,29 @@ func s:StartDebug_internal(dict)
   else
     call s:StartDebug_term(a:dict)
   endif
+
+  if exists('g:termdebug_disasm_window')
+    if g:termdebug_disasm_window
+      let curwinid = win_getid(winnr())
+      call s:GotoAsmwinOrCreateIt()
+      call win_gotoid(curwinid)
+    endif
+  endif
+
+  if exists('#User#TermdebugStartPost')
+    doauto <nomodeline> User TermdebugStartPost
+  endif
 endfunc
 
-" Use when debugger didn't start or ended.
 func s:CloseBuffers()
-  exe 'bwipe! ' . s:ptybuf
-  exe 'bwipe! ' . s:commbuf
-  exe 'bwipe! ' . s:stackbuf
+  if exists('s:ptyjob')
+    call s:WipeJobBuffer(s:ptyjob)
+  endif
+  call s:WipeJobBuffer(s:commjob)
+  call s:WipeJobBuffer(s:gdbjob)
+  if s:stackbuf > 0
+    exe 'bwipe! ' . s:stackbuf
+  endif
   unlet! s:gdbwin
 endfunc
 
@@ -176,22 +202,100 @@ func s:UseSeparateTTYForProgram()
   return !exists('g:termdebug_separate_tty') || g:termdebug_separate_tty
 endfunc
 
+function! s:TermSendKeys(job, str)
+  if has('nvim')
+    call chansend(a:job['jobid'], a:str)
+  else
+    call term_sendkeys(a:job['buffer'], a:str)
+  endif
+endfunction
+
+function! s:DispatchToOutFcn(FuncRefObj, chan_id, msgs, name)
+  call a:FuncRefObj(a:chan_id, ''.join(a:msgs))
+endfunction
+
+function! s:DoNothing(...)
+endfunction
+
+" s:TermStart: nvim/vim compatible version for starting a new terminal
+" Description: 
+function! s:TermStart(cmd, opts)
+  let term_name = get(a:opts, 'term_name', '')
+  let vertical = get(a:opts, 'vertical', v:false)
+
+  " Stupid f*ing vim rules: funcref objects can only be stored in variables
+  " whose names start with capital letters!
+  let OutCB = get(a:opts, 'out_cb', function('s:DoNothing'))
+  let ExitCB = get(a:opts, 'exit_cb', function('s:DoNothing'))
+
+  let hidden = get(a:opts, 'hidden', v:false)
+  let term_finish = get(a:opts, 'term_finish', 'open')
+
+  if has('nvim')
+    if type(a:cmd) == v:t_string && a:cmd == 'NONE'
+      let cmd = 'tail -f /dev/null;#'.term_name
+    else
+      let cmd = a:cmd
+    endif
+
+    if hidden
+      let jobid = jobstart(cmd, {
+	    \ 'on_stdout': function('s:DispatchToOutFcn', [OutCB]),
+	    \ 'on_exit': ExitCB,
+	    \ 'pty': v:true,
+	    \ })
+    else
+      execute vertical ? 'vnew' : 'new'
+      let jobid = termopen(cmd, {
+	    \ 'on_stdout': function('s:DispatchToOutFcn', [OutCB]),
+	    \ 'on_exit': ExitCB,
+	    \ })
+    endif
+    if jobid <= 0
+      return {}
+    endif
+
+    let pty_job_info = nvim_get_chan_info(jobid)
+    let pty = pty_job_info['pty']
+    let ptybuf = get(pty_job_info, 'buffer', -1)
+  else
+    let ptybuf = term_start(a:cmd, {
+	  \ 'term_name': term_name,
+	  \ 'vertical': vertical,
+	  \ 'out_cb': OutCB,
+	  \ 'exit_cb': ExitCB,
+	  \ 'hidden': hidden,
+	  \ 'term_finish': term_finish
+	  \ })
+    if ptybuf == 0
+      return {}
+    endif
+
+    let job = term_getjob(ptybuf)
+    let pty = job_info(job)['tty_out']
+    let jobid = -1
+    call setbufvar(ptybuf, '&buflisted', 0)
+  end
+  return {
+	\ 'buffer': ptybuf,
+	\ 'pty': pty,
+	\ 'jobid': jobid
+	\ }
+endfunction
+
 func s:StartDebug_term(dict)
-  let s:ptybuf = 0
   let usetty = s:UseSeparateTTYForProgram()
   let pty = ''
   if usetty
     " Open a terminal window without a job, to run the debugged program in.
-    let s:ptybuf = term_start('NONE', {
-	  \ 'term_name': 'debugged program',
-	  \ 'vertical': s:vertical,
+    let s:ptyjob = s:TermStart('NONE', {
+	  \ 'term_name': 'debugged program', 
+	  \ 'vertical': s:vertical
 	  \ })
-    if s:ptybuf == 0
-      echoerr 'Failed to open the program terminal window'
+    if empty(s:ptyjob)
+      echoerr 'invalid argument (or job table is full) while opening terminal window'
       return
     endif
-    let pty = job_info(term_getjob(s:ptybuf))['tty_out']
-    let s:ptywin = win_getid(winnr())
   endif
   if s:vertical
     " Assuming the source code window will get a signcolumn, use two more
@@ -204,17 +308,16 @@ func s:StartDebug_term(dict)
   endif
 
   " Create a hidden terminal window to communicate with gdb
-  let s:commbuf = term_start('NONE', {
+  let s:commjob = s:TermStart('NONE', {
 	\ 'term_name': 'gdb communication',
 	\ 'out_cb': function('s:CommOutput'),
-	\ 'hidden': 1,
+	\ 'hidden': 1
 	\ })
-  if s:commbuf == 0
+  if empty(s:commjob)
     echoerr 'Failed to open the communication terminal window'
-    exe 'bwipe! ' . s:ptybuf
+    exe 'bwipe! ' . s:ptyjob['buffer']
     return
   endif
-  call setbufvar(s:commbuf, '&buflisted', 0)
   " Open a terminal window to run the debugger.
   " Add -quiet to avoid the intro message causing a hit-enter prompt.
   let gdb_args = get(a:dict, 'gdb_args', [])
@@ -227,19 +330,20 @@ func s:StartDebug_term(dict)
     let cmd = [g:termdebugger, '-quiet'] + gdb_args
   endif
 
-  call ch_log('executing "' . join(cmd) . '"')
+  " call ch_log('executing "' . join(cmd) . '"')
   let s:foundGdbPrompt = 0
-  let s:gdbbuf = term_start(cmd, {
+  let s:gdbjob = s:TermStart(cmd, {
+	\ 'term_name': 'GDB',
 	\ 'term_finish': 'close',
-	\ 'out_cb': function('s:OnGdbMainOutput', [a:dict])
+	\ 'out_cb': function('s:OnGdbMainOutput', [a:dict]),
+	\ 'exit_cb': function('s:EndTermDebug')
 	\ })
-  if s:gdbbuf == 0
+  let s:gdbwin = win_getid(winnr())
+  if empty(s:gdbjob)
     echoerr 'Failed to open the gdb terminal window'
     call s:CloseBuffers()
     return
   endif
-  call setbufvar(s:gdbbuf, '&buflisted', 0)
-  let s:gdbwin = win_getid(winnr())
 
   let s:gdbDoneInitializing = 0
   while !s:gdbDoneInitializing
@@ -257,7 +361,7 @@ func s:OnGdbMainOutput(dict, chan, msg)
   " .gdbinit prints out a lot of messages and the Vim window is
   " sufficiently small.
   if a:msg =~ '--Type <RET> for more, q to quit, c to continue without paging--'
-    call term_sendkeys(s:gdbbuf, "c\r")
+    call s:TermSendKeys(s:gdbjob, "c\r")
   elseif a:msg =~ '(gdb)'
     let s:foundGdbPrompt = 1
     call s:StartDebug_term_step2(a:dict)
@@ -265,25 +369,43 @@ func s:OnGdbMainOutput(dict, chan, msg)
   endif
 endfunc
 
+func s:HasGdbProcessExited()
+  if has('nvim')
+    return nvim_get_chan_info(s:gdbjob['jobid']) == {}
+  else
+    let gdbproc = term_getjob(s:gdbjob['buffer'])
+    return gdbproc == v:null || job_status(gdbproc) !=# 'run'
+  endif
+endfunc
+
+" s:TermGetLine:  {{{
+" Description: 
+function! s:TermGetLine(job, lnum)
+  let bufid = a:job['buffer']
+  if has('nvim')
+    return get(getbufline(bufid, a:lnum), 0, '')
+  else
+    return term_getline(bufid, a:lnum)
+  endif
+endfunction " }}}
+
 func s:StartDebug_term_step2(dict)
   " Connect gdb to the communication pty, using the GDB/MI interface
   call s:Debug('getting to s:StartDebug_term_step2')
-  let commpty = job_info(term_getjob(s:commbuf))['tty_out']
 
   " Set arguments to be run
   let proc_args = get(a:dict, 'proc_args', [])
   if len(proc_args)
-    call term_sendkeys(s:gdbbuf, 'set args ' . join(proc_args) . "\r")
+    call s:TermSendKeys(s:gdbjob, 'set args ' . join(proc_args) . "\r")
   endif
 
-  call term_sendkeys(s:gdbbuf, 'new-ui mi ' . commpty . "\r")
+  call s:TermSendKeys(s:gdbjob, 'new-ui mi ' . s:commjob['pty'] . "\r")
 
   " Wait for the response to show up, users may not notice the error and wonder
   " why the debugger doesn't work.
   let try_count = 0
   while 1
-    let gdbproc = term_getjob(s:gdbbuf)
-    if gdbproc == v:null || job_status(gdbproc) !=# 'run'
+    if s:HasGdbProcessExited()
       echoerr string(g:termdebugger) . ' exited unexpectedly'
       call s:CloseBuffers()
       return
@@ -291,8 +413,8 @@ func s:StartDebug_term_step2(dict)
 
     let response = ''
     for lnum in range(1,200)
-      let line1 = term_getline(s:gdbbuf, lnum)
-      let line2 = term_getline(s:gdbbuf, lnum + 1)
+      let line1 = s:TermGetLine(s:gdbjob, lnum)
+      let line2 = s:TermGetLine(s:gdbjob, lnum + 1)
       if line1 =~ 'new-ui mi '
         " response can be in the same line or the next line
         let response = line1 . line2
@@ -333,7 +455,6 @@ func s:StartDebug_term_step2(dict)
   " "Type <return> to continue" prompt.
   call s:SendCommand('set pagination off')
 
-  call job_setoptions(gdbproc, {'exit_cb': function('s:EndTermDebug')})
   call s:StartDebugCommon(a:dict)
 endfunc
 
@@ -363,7 +484,7 @@ func s:StartDebug_prompt(dict)
   let proc_args = get(a:dict, 'proc_args', [])
 
   let cmd = [g:termdebugger, '-quiet', '--interpreter=mi2'] + gdb_args
-  call ch_log('executing "' . join(cmd) . '"')
+  " call ch_log('executing "' . join(cmd) . '"')
 
   let s:gdbjob = job_start(cmd, {
 	\ 'exit_cb': function('s:EndPromptDebug'),
@@ -427,7 +548,12 @@ func s:StartDebug_prompt(dict)
   endif
 
   call s:StartDebugCommon(a:dict)
-  startinsert
+
+  if has('nvim')
+    " nvim starts terminal in 'normal' mode. just doing startinsert does
+    " not work unless we also navigate to the last line of the buffer!
+    normal! Ga
+  endif
 endfunc
 
 func s:StartDebugCommon(dict)
@@ -486,15 +612,16 @@ func s:StartDebugCommon(dict)
   endif
 
   doautocmd User TermDebugStarted
+  normal! Ga
 endfunc
 
 " Send a command to gdb.  "cmd" is the string without line terminator.
 func s:SendCommand(cmd)
-  call ch_log('sending to gdb: ' . a:cmd)
+  " call ch_log('sending to gdb: ' . a:cmd)
   if s:way == 'prompt'
     call ch_sendraw(s:gdb_channel, a:cmd . "\n")
   else
-    call term_sendkeys(s:commbuf, a:cmd . "\r")
+    call s:TermSendKeys(s:commjob, a:cmd . "\r")
   endif
 endfunc
 
@@ -507,7 +634,7 @@ func TermDebugSendCommand(cmd)
       call s:SendCommand('-exec-interrupt')
       sleep 10m
     endif
-    call term_sendkeys(s:gdbbuf, a:cmd . "\r")
+    call s:TermSendKeys(s:gdbjob, a:cmd . "\r")
   endif
 endfunc
 
@@ -519,7 +646,7 @@ endfunc
 " Function called when pressing CTRL-C in the prompt buffer and when placing a
 " breakpoint.
 func s:PromptInterrupt()
-  call ch_log('Interrupting gdb')
+  " call ch_log('Interrupting gdb')
   if has('win32')
     " Using job_stop() does not work on MS-Windows, need to send SIGTRAP to
     " the debugger program so that gdb responds again.
@@ -535,7 +662,7 @@ endfunc
 
 " Function called when gdb outputs text.
 func s:GdbOutCallback(channel, text)
-  call ch_log('received from gdb: ' . a:text)
+  " call ch_log('received from gdb: ' . a:text)
 
   " Drop the gdb prompt, we have our own.
   " Drop status and echo'd commands.
@@ -608,23 +735,19 @@ func s:GetFullname(msg)
   return name
 endfunc
 
-func s:EndTermDebug(job, status)
-  exe 'bwipe! ' . s:commbuf
-  unlet s:gdbwin
+func s:WipeJobBuffer(job)
+  if !empty(a:job) && a:job['buffer'] > 0
+    exe 'bwipe! '.a:job['buffer']
+  endif
+endfunc
 
+func s:EndTermDebug(...)
+  call s:CloseBuffers()
   call s:EndDebugCommon()
 endfunc
 
 func s:EndDebugCommon()
   let curwinid = win_getid(winnr())
-
-  if exists('s:ptybuf') && s:ptybuf
-    exe 'bwipe! ' . s:ptybuf
-  endif
-
-  if exists('s:stackbuf') && s:stackbuf != -1
-    exe 'bwipe! '.s:stackbuf
-  endif
 
   " Restore 'signcolumn' in all buffers for which it was set.
   call win_gotoid(s:sourcewin)
@@ -674,7 +797,7 @@ func s:EndPromptDebug(job, status)
 
   call s:EndDebugCommon()
   unlet s:gdbwin
-  call ch_log("Returning from EndPromptDebug()")
+  " call ch_log("Returning from EndPromptDebug()")
 endfunc
 
 " Handle a message received from gdb on the GDB/MI interface.
@@ -748,7 +871,7 @@ func s:InstallCommands()
   if s:way == 'prompt'
     command! Continue call s:SendCommand('continue')
   else
-    command! Continue call term_sendkeys(s:gdbbuf, "continue\r")
+    command! Continue call s:TermSendKeys(s:gdbjob, "continue\r")
   endif
 
   command! -range -nargs=* Evaluate call s:Evaluate(<range>, <q-args>)
@@ -783,9 +906,9 @@ endfunc
 function! s:ShowGdb()
   if !win_gotoid(s:gdbwin)
     if s:vertical
-      exec 'vert sb '.s:gdbbuf
+      exec 'vert sb '.s:gdbjob['buffer']
     else
-      exec 'sb '.s:gdbbuf
+      exec 'sb '.s:gdbjob['buffer']
     endif
   end
 endfunc
@@ -1235,10 +1358,10 @@ func s:HandleCursor(msg)
   let wid = win_getid(winnr())
 
   if a:msg =~ '^\*stopped'
-    call ch_log('program stopped')
+    " call ch_log('program stopped')
     let s:stopped = 1
   elseif a:msg =~ '^\*running,thread-id="all"'
-    call ch_log('program running')
+    " call ch_log('program running')
     let s:stopped = 0
   endif
 
@@ -1475,7 +1598,7 @@ func s:HandleProgramRun(msg)
     return
   endif
   let s:pid = nr
-  call ch_log('Detected process ID: ' . s:pid)
+  " call ch_log('Detected process ID: ' . s:pid)
 endfunc
 
 " Handle a BufRead autocommand event: place any signs.

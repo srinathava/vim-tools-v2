@@ -1,4 +1,4 @@
-if has('gui_running')
+if has('gui_running') && !has('nvim')
     amenu &Gdb.Start\ Gdb               :call gdb#gdb#Init()<CR>
     amenu &Gdb.Show\ Command\ Window    :call gdb#gdb#ShowCmdWindow()<CR>
 

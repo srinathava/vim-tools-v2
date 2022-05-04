@@ -279,7 +279,6 @@ function! <SID>DirDiff(srcA, srcB)
     let cmd = cmd." > \"".DiffBuffer."\""
 
     echo "Diffing directories, it may take a while..."
-    let g:foo = cmd
     let error = <SID>DirDiffExec(cmd, 0)
     if (error == 0)
         echo "There is no diff here."
@@ -750,7 +749,6 @@ endfunction
 " interactive flag ([0|1]).  Returns the v:shell_error after
 " executing the command.
 function! <SID>DirDiffExec(cmd, interactive)
-    let g:foo = a:cmd
     let error = 0
     if (a:interactive)
         exe (a:cmd)
@@ -759,7 +757,6 @@ function! <SID>DirDiffExec(cmd, interactive)
         silent exe (a:cmd)
         let error = v:shell_error
     endif
-    let g:bar = error
 "    let d = input("DirDiffExec: " . a:cmd . " " . a:interactive . " returns " . v:shell_error)
     return error
 endfunction

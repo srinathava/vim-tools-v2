@@ -8,6 +8,12 @@ function! mw#utils#GetRootDir()
         return fnamemodify(mw_anchorPath, ':p:h')
     endif
 
+    let gitpath = finddir('.git', '.;')
+    if gitpath != ''
+        return fnamemodify(gitpath, ':p:h:h')
+    endif
+
+    " Do this last otherwise any file under ~ will find this.
     let projpath = findfile('.vimproj.xml', '.;')
     if projpath != ''
         return fnamemodify(projpath, ':p:h')

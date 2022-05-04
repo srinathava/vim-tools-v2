@@ -182,7 +182,17 @@ function! mw#open#OpenFile()
     call mw#utils#AssertThatWeHaveAValidProject()
 
     let prefix = mw#utils#GetRootDir()
-    let filelist = system('listFiles.py')
+    if filereadable(prefix . '/mw_anchor')
+        let filelist = system('listFiles.py')
+    else
+        if executable('fd')
+            let filelist = system('fd --type f . '.prefix)
+        elseif executable('fdfind')
+            let filelist = system('fdfind --type f . '.prefix)
+        else
+            let filelist = system('find -type f -not -path ".git/*" '.prefix)
+        endif
+    endif
 
     let s:startingBufName = bufname('%')
     let s:startingBufNum = bufnr('%')

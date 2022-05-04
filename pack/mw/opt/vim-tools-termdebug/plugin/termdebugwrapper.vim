@@ -79,7 +79,7 @@ endfunction
 function! s:TermdebugAttach(pid, method)
     let pid = a:pid
     if pid == ''
-        let input = input('Enter the PID or process name to attach to :')
+        let input = input('Enter the PID or process name to attach to :', 'MATLAB')
     else
         let input = pid
     endif
@@ -294,11 +294,15 @@ function! s:InstallRuntimeMenuItems()
     call s:InstallRuntimeMenuItem('a', '&Gdb.Ignore\ SIGSEGV', ':GDB handle SIGSEGV nostop noprint<CR>')
 endfunction " }}}
 
+
+command! -nargs=? Attach      :call s:TermdebugAttach(<q-args>, 'attach')
+command! -nargs=? QuickAttach :call s:TermdebugAttach(<q-args>, 'quick_attach_sf')
+
 if has('gui_running')
     amenu &Gdb.Start\ Gdb               :Termdebug<CR>
     call s:InstallRuntimeMenuItem('a', '&Gdb.Show\ GDB\ Ter&minal', ':ShowGdb<CR>')
-    amenu &Gdb.&Attach        :call <SID>TermdebugAttach('', 'attach')<CR>
-    amenu &Gdb.&Quick\ Attach :call <SID>TermdebugAttach('', 'quick_attach_sf')<CR>
+    amenu &Gdb.&Attach        :Attach<CR>
+    amenu &Gdb.&Quick\ Attach :QuickAttach<CR>
 
     amenu &Gdb.-sep1- <Nop>
 

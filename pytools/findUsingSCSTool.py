@@ -84,5 +84,5 @@ fullfiles = p.filenames
 
 if len(fullfiles) > NUM_FILES_LIMIT:
     print("Too many file matches (%d)!" % len(fullfiles))
-else:
+elif fullfiles:
     print('%s' % subprocess.check_output(['grep', '-nH', '-i', searchTerm] + list(fullfiles)).decode('utf-8'))

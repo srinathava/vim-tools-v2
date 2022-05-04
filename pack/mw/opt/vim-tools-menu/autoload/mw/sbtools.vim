@@ -124,25 +124,43 @@ endfunction " }}}
 " ============================================================================== 
 " mw#sbtools#FindIn:  {{{
 " Description: 
-function! mw#sbtools#FindIn(prog, dir, name)
+function! mw#sbtools#FindIn(prog, dir, name, str)
     let rootDir = mw#utils#GetRootDir()
-    if rootDir == ''
-        echohl Search
-        echomsg "Not in a sandbox directory"
+
+    if empty(rootDir)
+        echohl Error
+        echomsg "Not in a sandbox directory or a git repo"
         echohl None
         return
     endif
 
-    let input = input('Enter grep options and pattern ('.a:name.'): ')
-    if input == ''
-        return
+    if filereadable(rootDir . '/mw_anchor')
+        let prog = a:prog
+    else
+        if executable('rg')
+            let prog = 'rg --vimgrep'
+        else
+            let prog = 'grep --exclude-dir=.git -r'
+            if isfile(projdir.'/.gitignore')
+                let prog .= ' --exclude-from='.rootDir.'/.gitignore'
+            endif
+        endif
+    endif
+
+    if a:str == ''
+        let input = input('Enter grep options and pattern ('.a:name.'): ', expand('<cword>'))
+        if input == ''
+            return
+        endif
+    else
+        input = a:str
     endif
 
     let origDir = getcwd()
     let orig_grepprg = &grepprg
 
-    exec 'cd '.a:dir
-    let &grepprg = a:prog.' $*'
+    exec 'cd '.rootDir
+    let &grepprg = prog.' $*'
     exec 'silent! grep! '.input
 
     let &grepprg = orig_grepprg
@@ -151,12 +169,14 @@ function! mw#sbtools#FindIn(prog, dir, name)
     cwindow
 endfunction " }}}
 " mw#sbtools#FindInProj: finds pattern in project {{{
-function! mw#sbtools#FindInProj()
-    call mw#sbtools#FindIn('findInProj.py', expand('%:p:h'), 'grep project')
+function! mw#sbtools#FindInProj(...)
+    let str = a:0 > 0 ? a:1 : ''
+    call mw#sbtools#FindIn('findInProj.py', expand('%:p:h'), 'grep project', str)
 endfunction " }}}
 " mw#sbtools#FindInSolution: finds pattern in project {{{
-function! mw#sbtools#FindInSolution()
-    call mw#sbtools#FindIn('findInSoln.py', expand('%:p:h'), 'grep solution')
+function! mw#sbtools#FindInSolution(...)
+    let str = a:0 > 0 ? a:1 : ''
+    call mw#sbtools#FindIn('findInSoln.py', expand('%:p:h'), 'grep solution', str)
 endfunction " }}}
 " mw#sbtools#FindUsingSbid: find using sbglobal {{{
 " Description: 
@@ -228,6 +248,89 @@ endfun
 " }}}
 
 " ==============================================================================
+" Terminal compatibility layer
+" ============================================================================== 
+" s:DispatchToOutFcn:  {{{
+" Description: 
+function! s:DispatchToOutFcn(FuncRefObj, chan_id, msgs, name)
+  call a:FuncRefObj(a:chan_id, ''.join(a:msgs))
+endfunction " }}}
+" s:ExitCBWrapper: wrapper around exit callback for Vim {{{
+" Description: 
+function! s:ExitCBWrapper()
+
+endfunction " }}}
+" s:DoNothing {{{
+function! s:DoNothing(...)
+endfunction " }}}
+" s:TermStart: nvim/vim compatible version for starting a new terminal {{{
+" Description: 
+function! s:TermStart(cmd, opts)
+  let term_name = get(a:opts, 'term_name', '')
+  let vertical = get(a:opts, 'vertical', v:false)
+
+  " Stupid f*ing vim rules: funcref objects can only be stored in variables
+  " whose names start with capital letters!
+  let OutCB = get(a:opts, 'out_cb', function('s:DoNothing'))
+  let ExitCB = get(a:opts, 'exit_cb', function('s:DoNothing'))
+
+  let hidden = get(a:opts, 'hidden', v:false)
+  let term_finish = get(a:opts, 'term_finish', 'open')
+
+  if has('nvim')
+    if type(a:cmd) == v:t_string && a:cmd == 'NONE'
+      let cmd = 'tail -f /dev/null;#'.term_name
+    else
+      let cmd = a:cmd
+    endif
+
+    if hidden
+      let jobid = jobstart(cmd, {
+	    \ 'on_stdout': function('s:DispatchToOutFcn', [OutCB]),
+	    \ 'on_exit': ExitCB,
+	    \ 'pty': v:true,
+	    \ })
+    else
+      execute vertical ? 'vnew' : 'new'
+      let jobid = termopen(cmd, {
+	    \ 'on_stdout': function('s:DispatchToOutFcn', [OutCB]),
+	    \ 'on_exit': ExitCB,
+	    \ })
+      startinsert
+    endif
+    if jobid <= 0
+      return {}
+    endif
+
+    let pty_job_info = nvim_get_chan_info(jobid)
+    let pty = pty_job_info['pty']
+    let ptybuf = get(pty_job_info, 'buffer', -1)
+  else
+    let ptybuf = term_start(a:cmd, {
+	  \ 'term_name': term_name,
+	  \ 'vertical': vertical,
+	  \ 'out_cb': OutCB,
+	  \ 'exit_cb': ExitCB,
+	  \ 'hidden': hidden,
+	  \ 'term_finish': term_finish
+	  \ })
+    if ptybuf == 0
+      return {}
+    endif
+
+    let job = term_getjob(ptybuf)
+    let pty = job_info(job)['tty_out']
+    let jobid = -1
+    call setbufvar(ptybuf, '&buflisted', 0)
+  end
+  return {
+	\ 'buffer': ptybuf,
+	\ 'pty': pty,
+	\ 'jobid': jobid
+	\ }
+endfunction " }}}
+
+" ==============================================================================
 " Compiling projects
 " ============================================================================== 
 " mw#sbtools#SetCompileLevelForProject:  {{{
@@ -297,6 +400,7 @@ function! s:GetProjectMakeProgram()
         return 'sbmake -distcc' "ERROR?"
     endif
 endfunction " }}}
+" s:GetModulePath: gets the MathWorks module for the current file {{{
 function! s:GetModulePath()
     let filePath = expand('%:p:h')
 
@@ -314,8 +418,6 @@ function! s:GetModulePath()
         return
     end
 endfunction " }}}
-
-
 " s:SetFileMakePrg: sets the 'makeprg' option for the current buffer {{{
 function! s:GetFileMakeProgram(fileToBuild)
     if g:MWFileCompileLevel == 1
@@ -351,49 +453,64 @@ function! mw#sbtools#GetCurrentProjDir()
     return projDir
 endfunction
 " }}}
-
 " s:HandleBuildResults:  {{{
 " Description: 
 function! s:HandleBuildResults(job, status)
-    let &termwinsize = s:old_termwinsize
+    if !has('nvim')
+        let &termwinsize = s:old_termwinsize
+    endif
 
-    if job_info(a:job)['exitval'] == 0
+    if a:status == 0
         return
     endif
 
     let curpos = getcurpos()
     let curbuf = bufnr('%')
 
-    exec 'cgetbuffer '.s:term_buf
+    let term_buf = s:term_job['buffer']
+    exec 'cgetbuffer '.term_buf
     cwindow
 
-    exec 'bdelete '.s:term_buf
+    exec 'bdelete '.term_buf
     silent! crewind
     silent! cnext
 
-    if s:term_buf != curbuf
+    if term_buf != curbuf
         exec bufwinnr(curbuf).' wincmd w'
         call setpos('.', curpos)
     endif
 
+    let s:term_job = {}
     redraw!
 endfunction " }}}
-function s:ParseBuildResults(job, status)
+" s:ParseBuildResults: {{{
+function s:ParseBuildResults(job, status, ...)
     call timer_start(500, {timer -> s:HandleBuildResults(a:job, a:status)})
-endfunction
-
-" mw#sbtools#CompileProject: compiles the present flag {{{
-let s:term_buf = -1
-function! mw#sbtools#CompileProject()
+endfunction " }}}
+" s:CompileCommon:  {{{
+" Description: 
+function! s:CompileCommon(makeprg)
     let cdPath = s:GetModulePath()
     cclose
-    exec 'silent! bdelete '.s:term_buf
-    let s:old_termwinsize = &termwinsize
-    let &termwinsize = '10*1000'
-    bot let s:term_buf = term_start(s:GetProjectMakeProgram(), {
+    if !empty(s:term_job)
+        exec 'silent! bdelete '.s:term_job['buffer']
+    endif
+
+    if !has('nvim')
+        let s:old_termwinsize = &termwinsize
+        let &termwinsize = '10*1000'
+    endif
+
+    bot let s:term_job = s:TermStart(s:GetProjectMakeProgram(), {
                 \ "cwd": cdPath, 
                 \ "term_name": "sbmake term",
                 \ "exit_cb": function('s:ParseBuildResults')})
+
+endfunction " }}}
+" mw#sbtools#CompileProject: compiles the present flag {{{
+let s:term_job = {}
+function! mw#sbtools#CompileProject()
+    call s:CompileCommon(s:GetProjectMakeProgram())
     if expand('%:p') != ''
         exec 'silent! !genVimTags.py '.expand('%:p').' &'
     endif
@@ -402,16 +519,7 @@ endfunction
 " mw#sbtools#CompileFile: compiles present file {{{
 " Description: 
 function! mw#sbtools#CompileFile()
-    let cdPath = s:GetModulePath()
-    cclose
-    exec 'silent! bdelete '.s:term_buf
-    let s:old_termwinsize = &termwinsize
-    let &termwinsize = '10*1000'
-    bot let s:term_buf = term_start(s:GetFileMakeProgram(expand('%:p')), {
-                \ "cwd": cdPath, 
-                \ "term_name": "sbmake term",
-                \ "exit_cb": function('s:ParseBuildResults')})
-
+    call s:CompileCommon(s:GetFileMakeProgram(expand('%:p')))
 endfunction 
 " }}}
 " mw#sbtools#BuildUsingDas:  {{{

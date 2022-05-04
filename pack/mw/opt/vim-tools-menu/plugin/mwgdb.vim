@@ -143,7 +143,9 @@ function! MW_DebugCurrentTestPoint()
     exec 'GDB server quick_start_unit --gtest_filter='.unitTestName
 endfunction " }}}
 
-command! MWDebug :call MW_StartMatlab(1, <f-args>)
+command! -nargs=* MWDebugMATLAB             :call MW_StartMatlab(1, <f-args>)
+command! -nargs=1 MWDebugUnitTest           :call MW_DebugUnitTests(<f-args>)
+command! -nargs=0 MWDebugCurrentTestPoint   :call MW_DebugCurrentTestPoint()
 
 amenu &Mathworks.&Debug.&1\ MATLAB\ -nojvm          :call MW_StartMatlab(1, '-nojvm')<CR>
 amenu &Mathworks.&Debug.&2\ MATLAB\ -nodesktop      :call MW_StartMatlab(1, '-nodesktop -nosplash')<CR>
