@@ -94,11 +94,11 @@ amenu &Mathworks.&Tags.Search\ through\ &File\ tags         :call mw#tag#SelectT
 command! -nargs=0 MWAddIncludeForSymbol  :call mw#tag#AddInclude()
 amenu &Mathworks.&Tags.&Add\ include\ for\ current\ symbol  :MWAddIncludeForSymbol<CR>
 
-nmenu &Mathworks.&Find.In\ &Project                 :call mw#sbtools#FindInProj()<CR><C-R>=expand('<cword>')<CR>
-nmenu &Mathworks.&Find.In\ &Solution                :call mw#sbtools#FindInSolution()<CR><C-R>=expand('<cword>')<CR>
-nmenu &Mathworks.&Find.Using\ sb&id                 :call mw#sbtools#FindUsingSbid()<CR><C-R>=expand('<cword>')<CR>
-nmenu &Mathworks.&Find.Using\ sb&global             :call mw#sbtools#FindUsingSbglobal()<CR><C-R>=expand('<cword>')<CR>
-nmenu &Mathworks.&Find.Using\ &code\ search\ tool   :call mw#sbtools#FindUsingSourceCodeSearch()<CR><C-R>=expand('<cword>')<CR>
+nmenu &Mathworks.&Find.In\ &Project                 :call mw#sbtools#FindInProj()<CR>
+nmenu &Mathworks.&Find.In\ &Solution                :call mw#sbtools#FindInSolution()<CR>
+nmenu &Mathworks.&Find.Using\ sb&id                 :call mw#sbtools#FindUsingSbid()<CR>
+nmenu &Mathworks.&Find.Using\ sb&global             :call mw#sbtools#FindUsingSbglobal()<CR>
+nmenu &Mathworks.&Find.Using\ &code\ search\ tool   :call mw#sbtools#FindUsingSourceCodeSearch()<CR>
 nmenu &Mathworks.O&Pen\ file\ in\ project<Tab><F4>  :call mw#open#OpenFile()<CR>
 
 amenu &Mathworks.-sep3- <Nop>

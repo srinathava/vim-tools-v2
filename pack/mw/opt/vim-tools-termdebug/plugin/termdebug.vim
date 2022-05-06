@@ -612,7 +612,9 @@ func s:StartDebugCommon(dict)
   endif
 
   doautocmd User TermDebugStarted
-  normal! Ga
+  if has('nvim')
+    normal! Ga
+  endif
 endfunc
 
 " Send a command to gdb.  "cmd" is the string without line terminator.

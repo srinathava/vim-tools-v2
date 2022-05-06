@@ -267,7 +267,6 @@ endfunction " }}}
 " Description: 
 function! s:TermStart(cmd, opts)
   let term_name = get(a:opts, 'term_name', '')
-  let vertical = get(a:opts, 'vertical', v:false)
 
   " Stupid f*ing vim rules: funcref objects can only be stored in variables
   " whose names start with capital letters!
@@ -291,7 +290,7 @@ function! s:TermStart(cmd, opts)
 	    \ 'pty': v:true,
 	    \ })
     else
-      execute vertical ? 'vnew' : 'new'
+      :bot new
       let jobid = termopen(cmd, {
 	    \ 'on_stdout': function('s:DispatchToOutFcn', [OutCB]),
 	    \ 'on_exit': ExitCB,
@@ -306,9 +305,8 @@ function! s:TermStart(cmd, opts)
     let pty = pty_job_info['pty']
     let ptybuf = get(pty_job_info, 'buffer', -1)
   else
-    let ptybuf = term_start(a:cmd, {
+    bot let ptybuf = term_start(a:cmd, {
 	  \ 'term_name': term_name,
-	  \ 'vertical': vertical,
 	  \ 'out_cb': OutCB,
 	  \ 'exit_cb': ExitCB,
 	  \ 'hidden': hidden,
@@ -501,7 +499,7 @@ function! s:CompileCommon(makeprg)
         let &termwinsize = '10*1000'
     endif
 
-    bot let s:term_job = s:TermStart(s:GetProjectMakeProgram(), {
+    let s:term_job = s:TermStart(s:GetProjectMakeProgram(), {
                 \ "cwd": cdPath, 
                 \ "term_name": "sbmake term",
                 \ "exit_cb": function('s:ParseBuildResults')})
