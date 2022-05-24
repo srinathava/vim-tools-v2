@@ -136,6 +136,7 @@ function! mw#sbtools#FindIn(prog, dir, name, str)
 
     if filereadable(rootDir . '/mw_anchor')
         let prog = a:prog
+        let startdir = a:dir
     else
         if executable('rg')
             let prog = 'rg --vimgrep'
@@ -145,23 +146,23 @@ function! mw#sbtools#FindIn(prog, dir, name, str)
                 let prog .= ' --exclude-from='.rootDir.'/.gitignore'
             endif
         endif
+        let startdir = rootDir
     endif
 
-    if a:str == ''
-        let input = input('Enter grep options and pattern ('.a:name.'): ', expand('<cword>'))
-        if input == ''
+    let searchstr = a:str
+    if searchstr == ''
+        let searchstr = input('Enter grep options and pattern ('.a:name.'): ', expand('<cword>'))
+        if searchstr == ''
             return
         endif
-    else
-        input = a:str
     endif
 
     let origDir = getcwd()
     let orig_grepprg = &grepprg
 
-    exec 'cd '.rootDir
+    exec 'cd '.startdir
     let &grepprg = prog.' $*'
-    exec 'silent! grep! '.input
+    exec 'silent! grep '.searchstr
 
     let &grepprg = orig_grepprg
     exec 'cd '.origDir
@@ -250,83 +251,6 @@ endfun
 " ==============================================================================
 " Terminal compatibility layer
 " ============================================================================== 
-" s:DispatchToOutFcn:  {{{
-" Description: 
-function! s:DispatchToOutFcn(FuncRefObj, chan_id, msgs, name)
-  call a:FuncRefObj(a:chan_id, ''.join(a:msgs))
-endfunction " }}}
-" s:ExitCBWrapper: wrapper around exit callback for Vim {{{
-" Description: 
-function! s:ExitCBWrapper()
-
-endfunction " }}}
-" s:DoNothing {{{
-function! s:DoNothing(...)
-endfunction " }}}
-" s:TermStart: nvim/vim compatible version for starting a new terminal {{{
-" Description: 
-function! s:TermStart(cmd, opts)
-  let term_name = get(a:opts, 'term_name', '')
-
-  " Stupid f*ing vim rules: funcref objects can only be stored in variables
-  " whose names start with capital letters!
-  let OutCB = get(a:opts, 'out_cb', function('s:DoNothing'))
-  let ExitCB = get(a:opts, 'exit_cb', function('s:DoNothing'))
-
-  let hidden = get(a:opts, 'hidden', v:false)
-  let term_finish = get(a:opts, 'term_finish', 'open')
-
-  if has('nvim')
-    if type(a:cmd) == v:t_string && a:cmd == 'NONE'
-      let cmd = 'tail -f /dev/null;#'.term_name
-    else
-      let cmd = a:cmd
-    endif
-
-    if hidden
-      let jobid = jobstart(cmd, {
-	    \ 'on_stdout': function('s:DispatchToOutFcn', [OutCB]),
-	    \ 'on_exit': ExitCB,
-	    \ 'pty': v:true,
-	    \ })
-    else
-      :bot new
-      let jobid = termopen(cmd, {
-	    \ 'on_stdout': function('s:DispatchToOutFcn', [OutCB]),
-	    \ 'on_exit': ExitCB,
-	    \ })
-      startinsert
-    endif
-    if jobid <= 0
-      return {}
-    endif
-
-    let pty_job_info = nvim_get_chan_info(jobid)
-    let pty = pty_job_info['pty']
-    let ptybuf = get(pty_job_info, 'buffer', -1)
-  else
-    bot let ptybuf = term_start(a:cmd, {
-	  \ 'term_name': term_name,
-	  \ 'out_cb': OutCB,
-	  \ 'exit_cb': ExitCB,
-	  \ 'hidden': hidden,
-	  \ 'term_finish': term_finish
-	  \ })
-    if ptybuf == 0
-      return {}
-    endif
-
-    let job = term_getjob(ptybuf)
-    let pty = job_info(job)['tty_out']
-    let jobid = -1
-    call setbufvar(ptybuf, '&buflisted', 0)
-  end
-  return {
-	\ 'buffer': ptybuf,
-	\ 'pty': pty,
-	\ 'jobid': jobid
-	\ }
-endfunction " }}}
 
 " ==============================================================================
 " Compiling projects
@@ -374,7 +298,7 @@ function! mw#sbtools#SetCompileLevelForFile()
         \ '6. Lint only mode (sbcc -lint RELEASE)', 
         \ '7. Minimize includes (not yet supported)'])
 endfunction " }}}
-" s:SetProjectMakePrg: sets the 'makeprg' option for the current buffer {{{
+" s:GetProjectMakePrg: sets the 'makeprg' option for the current buffer {{{
 let g:MWDebug = 1
 function! s:GetProjectMakeProgram()
     let cdPath = s:GetModulePath()
@@ -416,7 +340,7 @@ function! s:GetModulePath()
         return
     end
 endfunction " }}}
-" s:SetFileMakePrg: sets the 'makeprg' option for the current buffer {{{
+" s:GetFileMakePrg: sets the 'makeprg' option for the current buffer {{{
 function! s:GetFileMakeProgram(fileToBuild)
     if g:MWFileCompileLevel == 1
         "1. Mixed compile (sbcc -cc MIXED@DEFAULT)"
@@ -453,7 +377,7 @@ endfunction
 " }}}
 " s:HandleBuildResults:  {{{
 " Description: 
-function! s:HandleBuildResults(job, status)
+function! s:HandleBuildResults(status)
     if !has('nvim')
         let &termwinsize = s:old_termwinsize
     endif
@@ -465,45 +389,90 @@ function! s:HandleBuildResults(job, status)
     let curpos = getcurpos()
     let curbuf = bufnr('%')
 
-    let term_buf = s:term_job['buffer']
-    exec 'cgetbuffer '.term_buf
+    exec 'cgetbuffer '.s:term_buf
     cwindow
 
-    exec 'bdelete '.term_buf
+    exec 'bdelete '.s:term_buf
     silent! crewind
     silent! cnext
 
-    if term_buf != curbuf
+    if s:term_buf != curbuf
         exec bufwinnr(curbuf).' wincmd w'
         call setpos('.', curpos)
     endif
 
-    let s:term_job = {}
     redraw!
 endfunction " }}}
 " s:ParseBuildResults: {{{
 function s:ParseBuildResults(job, status, ...)
-    call timer_start(500, {timer -> s:HandleBuildResults(a:job, a:status)})
+    call timer_start(500, {timer -> s:HandleBuildResults(a:status)})
+endfunction " }}}
+" s:AppendBufLine: {{{
+function! s:AppendBufLine(bufnum, lines)
+    " Remove all ANSI escape codes
+    let lines = map(a:lines, {_, s -> substitute(s, '\(\%x1b\[[0-9;]*[mGKHF]\)\|\(\)', '', 'g')})
+
+    let lnum = getbufinfo(a:bufnum)[0]['linecount']
+    call appendbufline(a:bufnum, lnum, lines)
+
+    let lnum = getbufinfo(a:bufnum)[0]['linecount']
+    let winid = bufwinid(a:bufnum)
+    call nvim_win_set_cursor(winid, [lnum, 0])
+endfunction
+" }}}
+" s:Nvim_OnOutput: handle nvim job output {{{
+function! s:Nvim_OnOutput(chanId, data, name)
+    if a:data[0] == ''
+        return
+    endif
+
+    let a:data[0] = s:nvim_partial_data . a:data[0]
+    let lines = a:data[0:-2]
+    let s:nvim_partial_data = a:data[-1]
+
+    call s:AppendBufLine(s:term_buf, lines)
+endfunction " }}}
+" s:Nvim_OnExit: {{{
+function! s:Nvim_OnExit(jobId, exitCode, eventType)
+    call s:AppendBufLine(s:term_buf, [s:nvim_partial_data])
+    if a:exitCode == 0
+        call s:AppendBufLine(s:term_buf, ["*** Build passed! ***"])
+    else
+        call s:AppendBufLine(s:term_buf, ["*** Build failed! ***"])
+    endif
+
+    call s:HandleBuildResults(a:exitCode)
 endfunction " }}}
 " s:CompileCommon:  {{{
 " Description: 
+let s:term_buf = -1
 function! s:CompileCommon(makeprg)
     let cdPath = s:GetModulePath()
     cclose
-    if !empty(s:term_job)
-        exec 'silent! bdelete '.s:term_job['buffer']
-    endif
+    exec 'silent! bdelete '.s:term_buf
 
     if !has('nvim')
         let s:old_termwinsize = &termwinsize
         let &termwinsize = '10*1000'
+
+        bot let s:term_buf = term_start(a:makeprg, {
+                    \ "cwd": cdPath, 
+                    \ "term_name": "sbmake term",
+                    \ "exit_cb": function('s:ParseBuildResults')})
+    else
+        bot new
+        resize 10
+        setlocal buftype=nofile
+        setlocal nowrap
+        let s:term_buf = bufnr('%')
+
+        let s:nvim_partial_data = ''
+        let s:nvim_jobid = jobstart(a:makeprg, {
+            \ 'on_stdout': function('s:Nvim_OnOutput'),
+            \ 'on_exit': function('s:Nvim_OnExit'),
+            \ 'pty': v:true,
+            \ })
     endif
-
-    let s:term_job = s:TermStart(s:GetProjectMakeProgram(), {
-                \ "cwd": cdPath, 
-                \ "term_name": "sbmake term",
-                \ "exit_cb": function('s:ParseBuildResults')})
-
 endfunction " }}}
 " mw#sbtools#CompileProject: compiles the present flag {{{
 let s:term_job = {}

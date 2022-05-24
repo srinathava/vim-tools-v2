@@ -5,7 +5,7 @@ local actions = require "telescope.actions"
 local action_state = require "telescope.actions.state"
 local entry_display = require "telescope.pickers.entry_display"
 
-function gen_from_commands(_)
+local function gen_from_commands(_)
   local displayer = entry_display.create {
     separator = "▏",
     items = {
@@ -39,7 +39,7 @@ end
 local function command_picker(opts, results)
   opts = opts or require("telescope.themes").get_dropdown{
     layout_config = {
-      height=math.min(40, table.getn(results) + 4)
+      height=math.min(40, #results + 4)
     }
   }
   pickers.new(opts, {
@@ -49,7 +49,7 @@ local function command_picker(opts, results)
           entry_maker = gen_from_commands(),
         },
     sorter = conf.generic_sorter(opts),
-    attach_mappings = function(prompt_bufnr, map)
+    attach_mappings = function(prompt_bufnr, _)
           actions.select_default:replace(function()
             actions.close(prompt_bufnr)
             local selection = action_state.get_selected_entry()
@@ -64,11 +64,11 @@ pickers.commands = function(opts)
   command_picker(opts, {
     {shortcut="fp", cmd="MWFindInProject", description="Find in project"},
     {shortcut="fs", cmd="MWFindInSolution", description="Find in solution"},
-    {shortcut="ta", cmd="MWFindInSolution", description="Find in solution"},
     {shortcut="cp", cmd="MWCompileProject", description="sbmake module"},
     {shortcut="cf", cmd="MWCompileFile", description="sbcc file"},
-    {shortcut="dm", cmd="MWDebugMATLAB", description="Debug (MATLAB)"},
-    {shortcut="dn", cmd="MWDebugMATLAB -nojvm", description="Debug (MATLAB -nojvm)"},
+    {shortcut="op", cmd="MWOpenFile", description="Open file in solution"},
+    {shortcut="sp", cmd="MWSetProjectCompileLevel", description="Set sbmake flags"},
+    {shortcut="sf", cmd="MWSetFileCompileLevel", description="Set sbcc flags"},
     {shortcut="dc", cmd="MWDebugUnitTest current", description="Current unit/pkg test"},
     {shortcut="dt", cmd="MWDebugCurrentTestPoint", description="Current test point"},
     {shortcut="is", cmd="MWDiffWithOther", description="Diff with another sandbox"},
@@ -77,6 +77,8 @@ pickers.commands = function(opts)
     {shortcut="",   cmd="MWSplitWithOther", description="Open same file from other sandbox"},
     {shortcut="",   cmd="MWSplitWithOther archive", description="Open same file from backing job"},
     {shortcut="",   cmd="MWSplitWithOther lkg", description="Open same file from latest_pass"},
+    {shortcut="ti", cmd="MWInitVimTags", description="Initialize Vim tags"},
+    {shortcut="ta", cmd="MWAddIncludeForSymbol", description="Add include for current symbol"},
   })
 end
 
@@ -104,10 +106,15 @@ pickers.gdb = function(opts)
 end
 
 pickers.files = function()
-  local gitdir = vim.fn.finddir('.git', '.;')
-  local opts = {find_command={'listFiles.py'}}
-  if string.len(gitdir) > 0 then
-    opts = {cwd=vim.fn.fnamemodify(gitdir, ':p:h:h')}
+  local projdir = vim.fn['mw#utils#GetRootDir']()
+  local opts = {}
+
+  if string.len(projdir) > 0 then
+    opts = {cwd=projdir}
+    local insideSb = vim.fn.filereadable(projdir .. '/mw_anchor')
+    if insideSb then
+      opts = vim.fn.extend(opts, {find_command={'listFiles.py'}})
+    end
   end
   return require('telescope.builtin').find_files(opts)
 end

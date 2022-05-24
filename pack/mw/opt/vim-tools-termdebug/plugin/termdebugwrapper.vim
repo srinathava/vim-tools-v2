@@ -97,71 +97,10 @@ function! s:TermdebugAttach(pid, method)
     exec 'GDB '.a:method.' '.pid
 endfunction " }}}
 
-" s:SetupHighlighting:  {{{
-function! s:SetupHighlighting()
-    hi default debugBreakpointPending term=reverse ctermbg=red guibg=red
-endfunction " }}}
-
-call s:SetupHighlighting()
-
-au ColorScheme * call s:SetupHighlighting()
-
-sign define debugBreakpointPending text=? texthl=debugBreakpointPending
-
-" s:ToggleBreakpoint: sets/clears pending breakpoint before Termdebug has started {{{
-" Description: 
-let s:numBreakpoints = 0
-function! s:ToggleBreakpoint()
-    let setBpInfo = sign_getplaced(bufname(), {'group': 'TermDebugBreakpoints', 'lnum': line('.')})
-
-    if !empty(setBpInfo[0]['signs'])
-        " There's already a breakpoint set by core termdebug. Let it handle
-        " toggling the breakpoint
-        ToggleBreakpoint
-        return
-    endif
-
-    let info = sign_getplaced(bufname(), {'group': 'TermDebugPendingBreakpoints', 'lnum': line('.')})
-    if empty(info[0]['signs'])
-
-        call sign_place(s:numBreakpoints+1, 
-                    \ 'TermDebugPendingBreakpoints', 'debugBreakpointPending', '%', {
-                    \ 'lnum': line('.'),
-                    \ })
-        let s:numBreakpoints += 1
-    else
-        echomsg info
-        call sign_unplace('TermDebugPendingBreakpoints', {'buffer': bufname(), 'id': info[0]['signs'][0]['id']})
-    endif
-endfunction " }}}
-" s:GetAllBreakPoints:  {{{
-function! s:GetAllBreakPoints()
-    let bps = []
-    for bufnr in range(1, bufnr('$'))
-        if !buflisted(bufnr) || empty(bufname(bufnr))
-            continue
-        endif
-        let signs = sign_getplaced(bufname(bufnr), {'group': 'TermDebugPendingBreakpoints'})
-        let signs = signs[0]['signs']
-        for sign in signs
-            let bps += [{'fname': expand('#'.bufnr.':p'), 'lnum': sign['lnum']}]
-        endfor
-    endfor
-    return bps
-endfunction " }}}
-
 let s:termdebug_status = 'stopped'
 " s:OnTermDebugStarted: triggered when Termdebug has started GDB {{{
 " Description: 
 function! s:OnTermDebugStarted()
-    let bps = s:GetAllBreakPoints()
-    for bp in bps
-        call s:Debug("OnTermDebugStarted: restoring breakpoint")
-        let fname = TermdebugFilenameModifier(bp['fname'])
-        call TermDebugSendCommand("break ".fname.':'.bp['lnum'])
-    endfor
-    call sign_unplace('TermDebugPendingBreakpoints')
-
     call s:InstallMaps()
     call s:EnableRuntimeMenuItems()
 
@@ -184,12 +123,12 @@ function! s:OnTermDebugStopped()
     let s:termdebug_status = 'stopped'
 endfunction " }}}
 
-augroup TermDebugPendingBreakpoint
+augroup TermDebugWrapper
+    au!
     au User TermDebugStarted :call s:OnTermDebugStarted()
     au User TermDebugStopped :call s:OnTermDebugStopped()
 augroup END
-" This map will be taken over by Termdebug once it has started.
-nmap <F9> :call <SID>ToggleBreakpoint()<CR>
+nmap <F9> :ToggleBreakpoint<CR>
 
 let s:userMappings = {}
 
@@ -211,7 +150,6 @@ func! s:InstallMaps()
   call s:CreateMap('<S-F11>', ':GDB finish<CR>', 'n')
   call s:CreateMap('U',       ':GDB up<CR>', 'n')
   call s:CreateMap('D',       ':GDB down<CR>', 'n')
-  call s:CreateMap('<F9>',    ':ToggleBreakpoint<CR>', 'n')
   call s:CreateMap('<C-P>',   ":exec 'GDB print '.expand('<cword>')<CR>", 'n')
   call s:CreateMap('<C-P>',   'y:GDB print <C-R>"<CR>', 'v')
 endfunction " }}}

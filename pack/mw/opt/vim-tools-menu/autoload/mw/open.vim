@@ -204,6 +204,7 @@ function! mw#open#OpenFile()
     call setbufvar(bufnum, '&buflisted', 0)
     call setbufvar(bufnum, '&buftype', 'nofile')
     call setbufvar(bufnum, '&ts', 8)
+    call setbufvar(bufnum, '&filetype', 'MW_FILES')
 
     let origPat = @/
     silent! 0put=filelist

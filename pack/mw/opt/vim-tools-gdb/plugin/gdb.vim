@@ -1,3 +1,6 @@
+command! -nargs=0 QuickAttach  :call gdb#gdb#Attach('', 'quick_attach_sf')
+command! -nargs=0 Attach       :call gdb#gdb#Attach('', 'attach')
+
 if has('gui_running') && !has('nvim')
     amenu &Gdb.Start\ Gdb               :call gdb#gdb#Init()<CR>
     amenu &Gdb.Show\ Command\ Window    :call gdb#gdb#ShowCmdWindow()<CR>
@@ -33,8 +36,8 @@ if has('gui_running') && !has('nvim')
 
     amenu &Gdb.-sep2- <Nop>
 
-    amenu &Gdb.&Attach :call gdb#gdb#Attach('', 'attach')<CR>
-    amenu &Gdb.&Quick\ Attach :call gdb#gdb#Attach('', 'quick_attach_sf')<CR>
+    amenu &Gdb.&Attach :Attach<CR>
+    amenu &Gdb.&Quick\ Attach :QuickAttach<CR>
 
     amenu &Gdb.-sep3- <Nop>
 

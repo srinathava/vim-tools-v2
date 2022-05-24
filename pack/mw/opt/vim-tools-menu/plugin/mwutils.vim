@@ -20,7 +20,7 @@ command! -nargs=0 -range AddHeaderProtection        :call mw#addHeaderProtection
 com! -nargs=1 -bang -complete=customlist,mw#sbtools#EditFileCompleteFunc
        \ EditFile call mw#sbtools#EditFileUsingLocate(<q-args>)
 
-com! -nargs=0 FastFile call mw#open#OpenFile()
+com! -nargs=0 MWOpenFile call mw#open#OpenFile()
 
 " At Mathworks, its usual practice to track modifications by figuring out
 " which files are write-able. Therefore, vim's behavior of retaining the
@@ -69,6 +69,10 @@ command! -nargs=? MWFindInSolution              :call mw#sbtools#FindInSolution(
 command! -nargs=0 MWCompileProject              :call mw#sbtools#CompileProject()
 command! -nargs=0 MWCompileFile                 :call mw#sbtools#CompileFile()
 
+command! -nargs=0 MWInitVimTags :call mw#tag#InitVimTags()
+
+command! -nargs=0 MWSetProjectCompileLevel :call mw#sbtools#SetCompileLevelForProject()
+command! -nargs=0 MWSetFileCompileLevel    :call mw#sbtools#SetCompileLevelForFile()
 
 if !has('gui_running') && !has('nvim')
     finish
@@ -88,7 +92,7 @@ nmenu &Mathworks.&Edit/Refactor.&Rename\ symbol :call mw#refactor#rename()<CR>
 
 
 amenu &Mathworks.-sep2- <Nop>
-amenu &Mathworks.&Tags.&Initialize\ tags                    :call mw#tag#InitVimTags()<CR>
+amenu &Mathworks.&Tags.&Initialize\ tags                    :MWInitVimTags<CR>
 amenu &Mathworks.&Tags.Search\ through\ &Project\ tags      :call mw#tag#SelectTag(expand('%:p'))<CR>
 amenu &Mathworks.&Tags.Search\ through\ &File\ tags         :call mw#tag#SelectTag(expand('%:p'))<CR>
 command! -nargs=0 MWAddIncludeForSymbol  :call mw#tag#AddInclude()
@@ -98,7 +102,7 @@ nmenu &Mathworks.&Find.In\ &Project                 :call mw#sbtools#FindInProj(
 nmenu &Mathworks.&Find.In\ &Solution                :call mw#sbtools#FindInSolution()<CR>
 nmenu &Mathworks.&Find.Using\ sb&id                 :call mw#sbtools#FindUsingSbid()<CR>
 nmenu &Mathworks.&Find.Using\ sb&global             :call mw#sbtools#FindUsingSbglobal()<CR>
-nmenu &Mathworks.&Find.Using\ &code\ search\ tool   :call mw#sbtools#FindUsingSourceCodeSearch()<CR>
+" nmenu &Mathworks.&Find.Using\ &code\ search\ tool   :call mw#sbtools#FindUsingSourceCodeSearch()<CR>
 nmenu &Mathworks.O&Pen\ file\ in\ project<Tab><F4>  :call mw#open#OpenFile()<CR>
 
 amenu &Mathworks.-sep3- <Nop>
