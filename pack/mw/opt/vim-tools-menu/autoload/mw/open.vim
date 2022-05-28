@@ -59,7 +59,7 @@ function! s:restoreAltBuffer()
         exec 'b! '.s:startingAltBufNum
         exec 'b! '.newBufNum
     else
-        exec 'b! '.s:startingBufNum
+        exec 'silent! b! '.s:startingBufNum
         exec 'b! '.newBufNum
     endif
 endfunction " }}}

@@ -78,12 +78,11 @@ let s:parsing_disasm_msg = 0
 let s:asm_lines = []
 let s:asm_addr = ''
 
-let s:path = expand('<sfile>:p:h')
-exec 'pyxfile '.s:path.'/init_logging.py'
-pyx initLogging()
+let s:debug_log = ''
 func s:Debug(msg)
-  exec "pyx log(r'''".a:msg."''')"
+  let s:debug_log .= a:msg . "\n"
 endfunction
+command -nargs=0 TermLog :echo s:debug_log
 
 " Take a breakpoint number as used by GDB and turn it into an integer.
 " The breakpoint may contain a dot: 123.4 -> 123004
@@ -259,10 +258,12 @@ function! s:TermStart(cmd, opts)
     let pty = pty_job_info['pty']
     let ptybuf = get(pty_job_info, 'buffer', -1)
   else
+    let in_io = hidden ? 'null' : 'pipe'
     let ptybuf = term_start(a:cmd, {
 	  \ 'term_name': term_name,
 	  \ 'vertical': vertical,
 	  \ 'out_cb': OutCB,
+	  \ 'in_io': in_io,
 	  \ 'exit_cb': ExitCB,
 	  \ 'hidden': hidden,
 	  \ 'term_finish': term_finish
@@ -281,6 +282,7 @@ function! s:TermStart(cmd, opts)
 	\ 'pty': pty,
 	\ 'jobid': jobid
 	\ }
+endif
 endfunction
 
 func s:StartDebug_term(dict)
@@ -378,16 +380,14 @@ func s:HasGdbProcessExited()
   endif
 endfunc
 
-" s:TermGetLine:  {{{
-" Description: 
-function! s:TermGetLine(job, lnum)
+func s:TermGetLine(job, lnum)
   let bufid = a:job['buffer']
   if has('nvim')
     return get(getbufline(bufid, a:lnum), 0, '')
   else
     return term_getline(bufid, a:lnum)
   endif
-endfunction " }}}
+endfunction
 
 func s:StartDebug_term_step2(dict)
   " Connect gdb to the communication pty, using the GDB/MI interface
@@ -416,20 +416,20 @@ func s:StartDebug_term_step2(dict)
       let line1 = s:TermGetLine(s:gdbjob, lnum)
       let line2 = s:TermGetLine(s:gdbjob, lnum + 1)
       if line1 =~ 'new-ui mi '
-        " response can be in the same line or the next line
-        let response = line1 . line2
-        if response =~ 'Undefined command'
-          echoerr 'Sorry, your gdb is too old, gdb 7.12 is required'
-          call s:CloseBuffers()
-          return
-        endif
-        if response =~ 'New UI allocated'
-          " Success!
-          break
-        endif
+	" response can be in the same line or the next line
+	let response = line1 . line2
+	if response =~ 'Undefined command'
+	  echoerr 'Sorry, your gdb is too old, gdb 7.12 is required'
+	  call s:CloseBuffers()
+	  return
+	endif
+	if response =~ 'New UI allocated'
+	  " Success!
+	  break
+	endif
       elseif line1 =~ 'Reading symbols from' && line2 !~ 'new-ui mi '
-        " Reading symbols might take a while, try more times
-        let try_count -= 1
+	" Reading symbols might take a while, try more times
+	let try_count -= 1
       endif
     endfor
     if response =~ 'New UI allocated'
@@ -787,6 +787,16 @@ func s:EndDebugCommon()
   au! TermDebug
 
   let s:gdb_started = 0
+
+  let bps = s:GetSignLocations('TermDebugBreakpoints')
+  call s:ClearBreakpointInfo()
+  for bp in bps
+    call sign_place(0, 
+	  \ 'TermDebugPendingBreakpoints', 'debugBreakpointPending', bp['fname'], {
+	    \ 'lnum': bp['lnum'],
+	    \ })
+  endfor
+  call sign_unplace('TermDebugBreakpoints')
 endfunc
 
 func s:EndPromptDebug(job, status)
@@ -808,15 +818,12 @@ func s:CommOutput(chan, msg)
   let msgs = split(a:msg, "\r")
 
   for msg in msgs
-    " remove prefixed NL
-    if msg[0] == "\n"
-      let msg = msg[1:]
-    endif
+    let msg = trim(msg)
     if msg != ''
       if msg =~ '^\(\*stopped\|\*running\|=thread-selected\)'
 	call s:HandleCursor(msg)
 	call s:HandleFrameInfo(msg)
-      elseif msg =~ '^\^done,bkpt=' || msg =~ '^=breakpoint-created,'
+      elseif msg =~ '\^done,bkpt=' || msg =~ '=breakpoint-created,'
 	call s:HandleBreakpointCreated(msg)
       elseif msg =~ '^\^done,BreakpointTable='
 	call s:HandleBreakpointInfo(msg)
@@ -882,10 +889,7 @@ func s:InstallCommands()
   command! Source call s:GotoSourcewinOrCreateIt()
   command! Winbar call s:InstallWinbar()
 
-  if !exists('g:termdebug_map_K') || g:termdebug_map_K
-    let s:k_map_saved = maparg('K', 'n', 0, 1)
-    nnoremap K :Evaluate<CR>
-  endif
+  nnoremap K :Evaluate<CR>
 
   if has('menu') && &mouse != ''
     if !exists('g:termdebug_install_winbar') || g:termdebug_install_winbar
@@ -912,7 +916,7 @@ function! s:ShowGdb()
     else
       exec 'sb '.s:gdbjob['buffer']
     endif
-  end
+  endif
 endfunc
 
 let s:winbar_winids = []
@@ -939,7 +943,7 @@ func s:ClearBreakpointInfo()
   let s:breakpoints = {}
 
   for val in keys(s:breakpoint_signs)
-    exe "sign undefine '.val
+    exe "sign undefine ".val
   endfor
   let s:breakpoint_signs = {}
 endfunc
@@ -963,10 +967,7 @@ func s:DeleteCommands()
   delcommand Winbar
   delcommand Stack
 
-  if exists('s:k_map_saved') && !empty(s:k_map_saved)
-    call mapset('n', 0, s:k_map_saved)
-    unlet s:k_map_saved
-  endif
+  nunmap K
 
   if has('menu')
     " Remove the WinBar entries from all windows where it was added.
@@ -996,10 +997,6 @@ func s:DeleteCommands()
 
   exe 'sign unplace ' . s:pc_id
   sign undefine debugPC
-
-  if !exists('g:termdebug_persist_breakpoints') || !g:termdebug_persist_breakpoints
-    call s:ClearBreakpointInfo()
-  endif
 endfunc
 
 func s:LocationCmd(at, cmd)
@@ -1022,7 +1019,7 @@ func s:LocationCmd(at, cmd)
   else
     " Use the fname:lnum format, older gdb can't handle --source.
     let at = fnameescape(expand('%:p')) . ':' . line('.')
-  end
+  endif
 
   call s:SendCommand(a:cmd.' '.at)
   if do_continue
@@ -1038,7 +1035,7 @@ func s:SetBreakpoint(at)
 endfunc
 
 func s:UnplaceBreakpointSign(id, subid)
-   exe 'sign unplace ' . s:Breakpoint2SignNumber(a:id, a:subid).' group=TermDebugBreakpoints'
+  exe 'sign unplace ' . s:Breakpoint2SignNumber(a:id, a:subid).' group=TermDebugBreakpoints'
 endfunc
 
 " :Clear - Delete a breakpoint at the cursor position.
@@ -1059,6 +1056,7 @@ endfunc
 
 func s:ToggleBreakpoint()
   if s:gdb_started == 0
+    call s:Debug('setting pending breakpoint')
     call s:TogglePendingBreakpoint()
     return
   endif
@@ -1404,6 +1402,7 @@ func s:DefineBreakpointSign(id, subid, pending)
   let s:breakpoint_signs[signName] = 1
   call s:Debug("sign define debugBreakpoint" . nr . " text=" . substitute(nr, '\..*', '', '') . " texthl=".texthl)
   exe "sign define debugBreakpoint" . nr . " text=" . substitute(nr, '\..*', '', '') . " texthl=".texthl
+  return signName
 endfunc
 
 func s:SplitMsg(s)
@@ -1447,7 +1446,7 @@ func s:TryToResolveName(name)
   if bufloaded(a:name)
     return a:name
   endif
-  
+
   for bufnum in range(1, bufnr('$'))
     if s:EndsWith(fnamemodify(bufname(bufnum), ':p'), a:name)
       return bufname(bufnum)
@@ -1464,13 +1463,13 @@ func s:HandleBreakpointCreated(msg)
     " a watch does not have a file name
     return
   endif
-  call s:Debug('s:HandleBreakpointCreated: msg = '.a:msg)
   for msg in s:SplitMsg(a:msg)
     let fname = s:GetFullname(msg)
     let lnum = substitute(msg, '.*line="\([^"]*\)".*', '\1', '')
+    " call s:Debug('s:HandleBreakpointCreated: msg = '.msg.', fname = '.fname.', lnum = '.lnum)
     let pending = v:false
     if empty(fname)
-      let [fname, lnum] = s:GetPendingFileName(a:msg)
+      let [fname, lnum] = s:GetPendingFileName(msg)
       let pending = v:true
       if !empty(fname)
 	let fname = s:TryToResolveName(fname)
@@ -1503,11 +1502,12 @@ func s:HandleBreakpointCreated(msg)
       let entries[subid] = entry
     endif
 
+    let entry['id'] = id
+    let entry['subid'] = subid
     let entry['fname'] = fname
     let entry['lnum'] = lnum
     let entry['placed'] = 0
 
-    call s:Debug("getting fname = '".fname."', loaded = ".bufloaded(fname))
     if bufloaded(fname)
       call s:PlaceSign(id, subid, entry)
     endif
@@ -1519,9 +1519,9 @@ func s:PlaceSign(id, subid, entry)
   let signId = s:Breakpoint2SignNumber(a:id, a:subid)
   call s:Debug('placing sign in '.a:entry['fname'].' at line '.a:entry['lnum'])
   call sign_place(signId, 
-	      \ 'TermDebugBreakpoints', 'debugBreakpoint'.nr, a:entry['fname'], {
-	      \ 'lnum': a:entry['lnum'],
-	      \ })
+	\ 'TermDebugBreakpoints', 'debugBreakpoint'.nr, a:entry['fname'], {
+	  \ 'lnum': a:entry['lnum'],
+	  \ })
 
   let a:entry['placed'] = 1
 endfunc
@@ -1539,33 +1539,23 @@ func s:TogglePendingBreakpoint()
   endif
 endfunc
 
-func s:GetPendingBreakpoints()
+func s:GetSignLocations(groupName)
   let bps = []
   for bufnr in range(1, bufnr('$'))
     if !buflisted(bufnr) || empty(bufname(bufnr))
       continue
     endif
-    let signs = sign_getplaced(bufname(bufnr), {'group': 'TermDebugPendingBreakpoints'})
+    let lnumsfound = {}
+    let signs = sign_getplaced(bufname(bufnr), {'group': a:groupName})
     let signs = signs[0]['signs']
     for sign in signs
-      let bps += [{'fname': expand('#'.bufnr.':p'), 'lnum': sign['lnum']}]
+      if get(lnumsfound, sign['lnum'], 0) == 0
+	let bps += [{'fname': expand('#'.bufnr.':p'), 'lnum': sign['lnum']}]
+      endif
+      let lnumsfound[sign['lnum']] = 1
     endfor
   endfor
   return bps
-endfunc
-
-func s:GetPendingBreakpointLocations()
-  let locations = []
-  let bps = s:GetPendingBreakpoints()
-  for bp in bps
-    let fname = bp['fname']
-    if exists('*TermdebugFilenameModifier')
-      let fname = TermdebugFilenameModifier(fname)
-    endif
-    let locations += [fname.':'.bp['lnum']]
-  endfor
-  call s:Debug('returning locations: '.locations)
-  return locations
 endfunc
 
 func s:DeleteBreakpoint(id)
@@ -1613,37 +1603,23 @@ func s:HandleBreakpointInfo(msg)
     let bpinfo = matchstr(a:msg, 'bkpt={.\{-\}}', startpos)
     if empty(bpinfo)
       break
-    end
+    endif
     let startpos += strlen(bpinfo)
 
     let num = s:GetMiValue(bpinfo, "number") + 0
   endwhile
 
-  let locations = []
-  for [id, entries] in items(s:breakpoints)
-    if id > num
-      for [subid, entry] in items(entries)
-	let filename = entry['fname']
-	if exists('*TermdebugFilenameModifier')
-	  let filename = TermdebugFilenameModifier(filename)
-	endif
-	let locations += [filename.':'.entry['lnum']]
-      endfor
-    endif
-  endfor
-
-  call s:Debug('restoring pending breakpoints')
-  let locations += s:GetPendingBreakpointLocations()
+  let bps = s:GetSignLocations('TermDebugPendingBreakpoints')
   call sign_unplace('TermDebugPendingBreakpoints')
 
-  call s:Debug('Clearing breakpoints')
-  call s:ClearBreakpointInfo()
-
-  call s:Debug('Restoring breakpoints')
-  for location in locations
+  for bp in bps
+    let fname = bp['fname']
+    if exists('*TermdebugFilenameModifier')
+      let fname = TermdebugFilenameModifier(fname)
+    endif
+    let location = fname.':'.bp['lnum']
     call s:SetBreakpoint(location)
   endfor
-
 endfunc
 
 " Handle the debugged program starting to run.

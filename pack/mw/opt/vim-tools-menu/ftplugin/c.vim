@@ -19,7 +19,7 @@ call mw#tag#AddSandboxTags(expand('%:p'))
 let Tlist_Process_File_Always = 1
 let Tlist_Auto_Update = 1
 TlistUpdate
-set statusline=%<%f\ %m%r%h%(%{GetCurrentTagOrEmpty()}%)%=%l,%c\ (%p%%)
+setlocal statusline=%<%f\ %m%r%h%(%{GetCurrentTagOrEmpty()}%)%=%l,%c\ (%p%%)
 
 if exists('*ToggleSrcHeader')
     finish
