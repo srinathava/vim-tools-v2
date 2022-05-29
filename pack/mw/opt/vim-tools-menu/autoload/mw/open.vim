@@ -190,7 +190,7 @@ function! mw#open#OpenFile()
         elseif executable('fdfind')
             let filelist = system('fdfind --type f . '.prefix)
         else
-            let filelist = system('find -type f -not -path ".git/*" '.prefix)
+            let filelist = system('find '.prefix." -type f -not -path '.git/*'")
         endif
     endif
 

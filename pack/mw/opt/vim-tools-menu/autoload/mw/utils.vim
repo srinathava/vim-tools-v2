@@ -112,6 +112,8 @@ function! mw#utils#AssertThatWeHaveAValidProject()
         echo "You are not in a sandbox. Use :cd to go to a sandbox directory"
         echohl None
         throw "ERROR: Invalid location"
+    else
+        return
     endif
 
     let vimProjFile = findfile('.vimproj.xml', '.;')

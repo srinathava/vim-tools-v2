@@ -142,7 +142,7 @@ function! mw#sbtools#FindIn(prog, dir, name, str)
             let prog = 'rg --vimgrep'
         else
             let prog = 'grep --exclude-dir=.git -r'
-            if isfile(projdir.'/.gitignore')
+            if filereadable(rootDir.'/.gitignore')
                 let prog .= ' --exclude-from='.rootDir.'/.gitignore'
             endif
         endif

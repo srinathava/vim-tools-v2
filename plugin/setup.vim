@@ -11,11 +11,11 @@ set shell=bash " needed by DiffSubmitFile
 com! -nargs=0 CD :exec 'cd '.expand('%:p:h')
 
 let s:external_apps = '//mathworks/hub/share/sbtools/external-apps'
-let $CTAGS_CMD = s:external_apps . '/exuberant-ctags/exuberant-ctags-5.9/exuberant-ctags/ctags'
-
-let g:GdbCmd = 'sb -no-debug-backing-stores -debug -gdb-switches --annotate=3 -gdb-switches --args'
-
-let g:Tlist_Ctags_Cmd = $CTAGS_CMD
+let isInsideMW = isdirectory(s:external_apps)
+if isInsideMW
+    let $CTAGS_CMD = s:external_apps . '/exuberant-ctags/exuberant-ctags-5.9/exuberant-ctags/ctags'
+    let g:Tlist_Ctags_Cmd = $CTAGS_CMD
+endif
 
 map <F3> <Plug>StartBufExplorer
 map <S-F3> <Plug>SplitBufExplorer
@@ -63,10 +63,12 @@ call MW_ExecPython('import os')
 call MW_ExecPython('sys.path += [r"'.s:pytoolspath.'"]')
 call MW_ExecPython('os.environ["PATH"] += (os.pathsep + "'.s:pytoolspath.'")')
 call MW_ExecPython('os.environ["PATH"] += (os.pathsep + "'.s:pytoolspath.'/selecttag")')
-if has('python')
-    call MW_ExecPython('sys.path += [r"'.s:external_apps.'/python/python27/site-packages"]')
-elseif has('python3')
-    call MW_ExecPython('sys.path += [r"'.s:external_apps.'/python/python3/site-packages"]')
+if isInsideMW
+    if has('python')
+        call MW_ExecPython('sys.path += [r"'.s:external_apps.'/python/python27/site-packages"]')
+    elseif has('python3')
+        call MW_ExecPython('sys.path += [r"'.s:external_apps.'/python/python3/site-packages"]')
+    endif
 endif
 call MW_ExecPython('os.environ["MW_VIM_TOOLS_ROOT"] = "'.g:MW_rootDir.'"')
 

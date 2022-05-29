@@ -18,8 +18,10 @@ function! TermDebugGdbCmd(pty)
     if mw_anchor_loc != ''
         let sbroot = fnamemodify(mw_anchor_loc, ':h')
         return split('sb -s '.sbroot.' -debug -no-debug-backing-stores -gdb-switches -quiet', ' ')
-    else
+    else if executable('sbgdb')
         return ['sbgdb']
+    else
+        return ['gdb']
     endif
 endfunction " }}}
 
