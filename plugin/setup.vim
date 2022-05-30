@@ -82,11 +82,4 @@ endif
 
 exec 'set packpath+='.g:MW_rootDir
 packadd vim-tools-menu
-
-if has('unix')
-    if exists('g:gdb_use_termdebug') && !g:gdb_use_termdebug
-        packadd vim-tools-gdb
-    else
-        packadd vim-tools-termdebug
-    endif
-endif
+packadd vim-tools-termdebug
