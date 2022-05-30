@@ -18,7 +18,7 @@ function! TermDebugGdbCmd(pty)
     if mw_anchor_loc != ''
         let sbroot = fnamemodify(mw_anchor_loc, ':h')
         return split('sb -s '.sbroot.' -debug -no-debug-backing-stores -gdb-switches -quiet', ' ')
-    else if executable('sbgdb')
+    elseif executable('sbgdb')
         return ['sbgdb']
     else
         return ['gdb']
@@ -173,7 +173,7 @@ endfunction " }}}
 let g:termdebug_separate_tty = 0
 let g:termdebug_persist_breakpoints = 1
 let g:termdebug_install_maps = 1
-let g:termdebugger = 'sbgdb'
+let g:termdebugger = 'gdb'
 let g:termdebug_popup = 0
 let g:termdebug_install_winbar = 0
 

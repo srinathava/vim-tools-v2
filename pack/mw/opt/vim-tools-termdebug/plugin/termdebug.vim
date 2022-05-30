@@ -107,6 +107,7 @@ au ColorScheme * call s:Highlight(1, '', &background)
 
 func s:StartDebug(bang, ...)
   " First argument is the command to debug, second core file or process ID.
+  call s:Debug('+StartDebug')
   call s:StartDebug_internal({'gdb_args': a:000, 'bang': a:bang})
 endfunc
 
@@ -166,6 +167,7 @@ func s:StartDebug_internal(dict)
     let s:way = 'prompt'
   endif
 
+  call s:Debug('starting using '.s:way)
   if s:way == 'prompt'
     call s:StartDebug_prompt(a:dict)
   else
@@ -325,6 +327,7 @@ func s:StartDebug_term(dict)
   let gdb_args = get(a:dict, 'gdb_args', [])
 
   if exists('*TermDebugGdbCmd')
+    call s:Debug('Using TermDebugGdbCmd')
     let cmd = TermDebugGdbCmd(pty)
   elseif usetty
     let cmd = [g:termdebugger, '-quiet', '-tty', pty] + gdb_args
@@ -814,11 +817,20 @@ func s:EndPromptDebug(job, status)
 endfunc
 
 " Handle a message received from gdb on the GDB/MI interface.
+let s:pendingOutput = ''
 func s:CommOutput(chan, msg)
-  let msgs = split(a:msg, "\r")
+  let msgs = split(a:msg, "\r", v:true)
 
-  for msg in msgs
+  " This rigamarole with pendingOutput is to account for truncated lines.
+  " With nvim, we occassionally get a single GDB message split across
+  " multiple calls to on_stdout. Therefore, keep pending messages around
+  " untile we get a "\r" which indicates a message is complete.
+  let msgs[0] = s:pendingOutput . msgs[0]
+  let s:pendingOutput = msgs[-1]
+
+  for msg in msgs[:-2]
     let msg = trim(msg)
+    " call s:Debug('s:CommOutput: inside loop: msg = '.msg)
     if msg != ''
       if msg =~ '^\(\*stopped\|\*running\|=thread-selected\)'
 	call s:HandleCursor(msg)
