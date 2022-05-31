@@ -96,7 +96,12 @@ function! s:TermdebugAttach(pid, method)
     if s:termdebug_status == 'stopped'
         Termdebug
     endif
-    exec 'GDB '.a:method.' '.pid
+
+    let s:on_gdb_started = 'GDB '.a:method.' '.pid
+    augroup TermdebugWrapperAttach
+        au!
+        au User TermDebugStarted exec s:on_gdb_started
+    augroup END
 endfunction " }}}
 
 let s:termdebug_status = 'stopped'
@@ -176,8 +181,6 @@ let g:termdebug_install_maps = 1
 let g:termdebugger = 'gdb'
 let g:termdebug_popup = 0
 let g:termdebug_install_winbar = 0
-
-command! -nargs=0 InitGdb Termdebug
 
 " s:InstallRuntimeMenuItem:  {{{
 " Description: 

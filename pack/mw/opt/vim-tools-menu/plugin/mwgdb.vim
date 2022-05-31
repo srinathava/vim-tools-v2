@@ -7,7 +7,7 @@ call MW_ExecPython("sys.path += [r'".s:scriptDir."']")
 call MW_ExecPython("from startMatlab import startMatlab")
 
 function! MW_AttachToMatlab(pid, mode)
-    InitGdb
+    Termdebug
 
     if a:mode == '-nojvm'
         GDB handle SIGSEGV stop print
@@ -58,6 +58,13 @@ function! MW_StartMatlab(attach, mode)
     endif
 endfunction " }}}
 
+" s:IssuePendingCommands: issues pending GDB IssuePendingCommands {{{
+" Description: 
+function! s:IssuePendingCommands()
+    for cmd in s:on_gdb_started
+        exec cmd
+    endfor
+endfunction " }}}
 " MW_DebugUnitTests:  {{{
 " Description: run the C++ unit tests for the current modules
 function! MW_DebugUnitTests(what)
@@ -112,14 +119,21 @@ function! MW_DebugUnitTests(what)
         return
     end
 
-    InitGdb
+    Termdebug
 
     " The server prefix makes GDB not ask for confirmation about loading
     " symbols from the file. That confirmation request makes the next cd
     " command silently fail.
-    exec 'GDB server handle SIGSEGV stop print'
-    exec 'GDB server file '.testPath
-    exec 'GDB server cd '.projDir
+    let s:on_gdb_started = [
+                \ 'GDB server handle SIGSEGV stop print',
+                \ 'GDB server file '.testPath,
+                \ 'GDB server cd '.projDir,
+                \ ]
+
+    augroup TermdebugWrapperAttach
+        au!
+        au User TermDebugStarted call s:IssuePendingCommands()
+    augroup END
 endfunction " }}}
 " MW_DebugCurrentTestPoint:  {{{
 " Description: 
@@ -138,9 +152,7 @@ function! MW_DebugCurrentTestPoint()
     let unitTestName = matches[1].'.'.matches[2]
 
     call MW_DebugUnitTests('current')
-
-    echomsg 'GDB server quick_start_unit --gtest_filter='.unitTestName
-    exec 'GDB server quick_start_unit --gtest_filter='.unitTestName
+    let s:on_gdb_started += ['GDB server quick_start_unit --gtest_filter='.unitTestName]
 endfunction " }}}
 
 command! -nargs=* MWDebugMATLAB             :call MW_StartMatlab(1, <f-args>)

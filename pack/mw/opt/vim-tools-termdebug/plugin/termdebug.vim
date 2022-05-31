@@ -349,11 +349,6 @@ func s:StartDebug_term(dict)
     call s:CloseBuffers()
     return
   endif
-
-  let s:gdbDoneInitializing = 0
-  while !s:gdbDoneInitializing
-    sleep 10m
-  endwhile
 endfunc
 
 func s:OnGdbMainOutput(dict, chan, msg)
@@ -370,7 +365,6 @@ func s:OnGdbMainOutput(dict, chan, msg)
   elseif a:msg =~ '(gdb)'
     let s:foundGdbPrompt = 1
     call s:StartDebug_term_step2(a:dict)
-    let s:gdbDoneInitializing = 1
   endif
 endfunc
 
@@ -613,7 +607,9 @@ func s:StartDebugCommon(dict)
     call win_gotoid(s:ptywin)
   endif
 
+  call s:Debug('broadcasting TermDebugStarted')
   doautocmd User TermDebugStarted
+
   let s:gdb_started = 1
   if has('nvim')
     normal! Ga
