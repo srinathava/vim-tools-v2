@@ -70,6 +70,13 @@ function! s:IssuePendingCommands()
     endfor
 endfunction " }}}
 " mw#gdb#UnitTests:  {{{
+" s:IssuePendingCommands: issues pending GDB IssuePendingCommands {{{
+" Description: 
+function! s:IssuePendingCommands()
+    for cmd in s:on_gdb_started
+        exec cmd
+    endfor
+endfunction " }}}
 " Description: run the C++ unit tests for the current modules
 function! mw#gdb#UnitTests(what)
     let projDir = mw#sbtools#GetCurrentProjDir()
