@@ -13,7 +13,7 @@ if !exists('g:FoldMatlab')
 end
 
 if !exists('g:ShowMlintMessagesOnWrite')
-    let g:ShowMlintMessagesOnWrite = 1
+    let g:ShowMlintMessagesOnWrite = 0
 end
 
 " s:SetLocalSettings: set local settings {{{
@@ -38,9 +38,9 @@ function! s:SetLocalSettings()
     if !exists('s:lintPathSet')
         let s:lintPathSet = 1
         if has('win64')
-            let lintPath = '//mathworks/devel/Aslrtw/perfect/matlab/bin/win64'
+            let lintPath = '\\mathworks\devel\jobarchive\Bmain\latest_pass\matlab\bin\glnxa64\mlint'
         elseif has('unix')
-            let lintPath = '/devel/Aslrtw/perfect/matlab/bin/glnxa64'
+            let lintPath = '/mathworks/devel/jobarchive/Bmain/latest_pass/matlab/bin/glnxa64/mlint'
         end
         let $PATH = $PATH . ':' . lintPath
         let s:lintPathSet = 1
