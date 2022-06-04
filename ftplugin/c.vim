@@ -4,10 +4,11 @@ let b:tag_else = "else {\<CR><++>\<CR>}"
 imap <silent> <buffer> <C-e> <C-r>=C_CompleteWord()<CR>
 
 let g:clang_format_path = 'sb-clang-format'
-exec 'vnoremap <silent> <Plug>clang-format :call mw#edit#FormatCurrentSelection()<CR>'
-
-if !hasmapto('<Plug>clang-format', 'v')
-    vmap <silent> = <Plug>clang-format
+if executable(g:clang_format_path)
+    exec 'vnoremap <silent> <Plug>clang-format :call mw#edit#FormatCurrentSelection()<CR>'
+    if !hasmapto('<Plug>clang-format', 'v')
+        vmap <silent> = <Plug>clang-format
+    endif
 endif
 
 if exists('b:did_mw_c_ftplugin')

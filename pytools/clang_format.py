@@ -31,7 +31,6 @@ import difflib
 import json
 import platform
 import subprocess
-import sys
 import vim
 
 # set g:clang_format_path to the path to clang-format if it is not on the path
@@ -84,12 +83,6 @@ def main():
     return
 
   # Avoid flashing an ugly, ugly cmd prompt on Windows when invoking clang-format.
-  startupinfo = None
-  if sys.platform.startswith('win32'):
-    startupinfo = subprocess.STARTUPINFO()
-    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-    startupinfo.wShowWindow = subprocess.SW_HIDE
-
   # Call formatter.
   command = [binary, '-style', style, '-cursor', str(cursor)]
   if lines != 'all':
@@ -100,7 +93,7 @@ def main():
     command.extend(['-assume-filename', vim.current.buffer.name])
   p = subprocess.Popen(command,
                        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                       stdin=subprocess.PIPE, startupinfo=startupinfo)
+                       stdin=subprocess.PIPE)
   stdout, stderr = p.communicate(input=text.encode(encoding))
 
   # If successful, replace buffer contents.
