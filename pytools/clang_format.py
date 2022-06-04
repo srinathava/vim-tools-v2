@@ -25,12 +25,13 @@
 #
 # It operates on the current, potentially unsaved buffer and does not create
 # or save any files. To revert a formatting, just undo.
-
+from __future__ import absolute_import, division, print_function
 
 import difflib
 import json
 import platform
 import subprocess
+import sys
 import vim
 
 # set g:clang_format_path to the path to clang-format if it is not on the path
@@ -43,7 +44,7 @@ if vim.eval('exists("g:clang_format_path")') == "1":
 # 'clang-format --help' for a list of supported styles. The default looks for
 # a '.clang-format' or '_clang-format' file to indicate the style that should be
 # used.
-style = "{BasedOnStyle: Google, Standard: Cpp11, ColumnLimit: 100, IndentWidth: 4, AccessModifierOffset: -2, IndentCaseLabels: false, MaxEmptyLinesToKeep: 3, KeepEmptyLinesAtTheStartOfBlocks: true, SpacesBeforeTrailingComments: 1, AllowShortFunctionsOnASingleLine: None, DerivePointerAlignment: false, SortIncludes: false, CommentPragmas: '^( IWYU pragma:|lint|TopTester:)', BinPackParameters: false, AllowAllParametersOfDeclarationOnNextLine: false, BreakConstructorInitializersBeforeComma: true, ConstructorInitializerAllOnOneLineOrOnePerLine: false, AllowShortIfStatementsOnASingleLine: false, AllowShortLoopsOnASingleLine: false}"
+style = None
 fallback_style = None
 if vim.eval('exists("g:clang_format_fallback_style")') == "1":
   fallback_style = vim.eval('g:clang_format_fallback_style')
@@ -61,7 +62,7 @@ def main():
 
   # Determine range to format.
   if vim.eval('exists("l:lines")') == '1':
-    lines = vim.eval('l:lines')
+    lines = ['-lines', vim.eval('l:lines')]
   elif vim.eval('exists("l:formatdiff")') == '1':
     with open(vim.current.buffer.name, 'r') as f:
       ondisk = f.read().splitlines();
@@ -83,17 +84,25 @@ def main():
     return
 
   # Avoid flashing an ugly, ugly cmd prompt on Windows when invoking clang-format.
+  startupinfo = None
+  if sys.platform.startswith('win32'):
+    startupinfo = subprocess.STARTUPINFO()
+    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    startupinfo.wShowWindow = subprocess.SW_HIDE
+
   # Call formatter.
-  command = [binary, '-style', style, '-cursor', str(cursor)]
-  if lines != 'all':
+  command = [binary, '-cursor', str(cursor)]
+  if lines != ['-lines', 'all']:
     command += lines
+  if style:
+    command.extend(['-style', style])
   if fallback_style:
     command.extend(['-fallback-style', fallback_style])
   if vim.current.buffer.name:
     command.extend(['-assume-filename', vim.current.buffer.name])
   p = subprocess.Popen(command,
                        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                       stdin=subprocess.PIPE)
+                       stdin=subprocess.PIPE, startupinfo=startupinfo)
   stdout, stderr = p.communicate(input=text.encode(encoding))
 
   # If successful, replace buffer contents.
