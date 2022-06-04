@@ -4,17 +4,23 @@
 let s:scriptDir = expand('<sfile>:p:h')
 
 function! mw#gdb#AttachToMATLAB(pid, mode)
-    Termdebug
-
     if a:mode == '-nojvm'
-        GDB handle SIGSEGV stop print
+        let segvHandler = 'GDB handle SIGSEGV stop print'
     else
-        GDB handle SIGSEGV nostop noprint
+        let segvHandler = 'GDB handle SIGSEGV nostop noprint'
     endif
+    let s:on_gdb_started = [
+                \ segvHandler,
+                \ 'GDB attach '.a:pid,
+                \ 'GDB continue',
+                \ ]
 
-    exec 'GDB attach '.a:pid
+    augroup TermdebugWrapperAttach
+        au!
+        au User TermDebugStarted call s:IssuePendingCommands()
+    augroup END
 
-    exec 'GDB continue'
+    Termdebug
 endfunction " }}}
 " mw#gdb#StartMATLABWithCustomCmdLineArgs{{{
 " Description:
@@ -130,8 +136,6 @@ function! mw#gdb#UnitTests(what)
         return
     end
 
-    Termdebug
-
     " The server prefix makes GDB not ask for confirmation about loading
     " symbols from the file. That confirmation request makes the next cd
     " command silently fail.
@@ -145,6 +149,8 @@ function! mw#gdb#UnitTests(what)
         au!
         au User TermDebugStarted call s:IssuePendingCommands()
     augroup END
+
+    Termdebug
 endfunction " }}}
 " mw#gdb#CurrentTestPoint:  {{{
 " Description: 
