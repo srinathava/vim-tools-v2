@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from getProjSettings import getProjSettings
 from sbtools import getRootDir
@@ -9,49 +9,38 @@ from subprocess import Popen, PIPE
 import sys
 from sbtools import *
 
-class Lister(Thread):
+class Base(Thread):
     def __init__(self, rootDir, include):
         Thread.__init__(self)
 
+        self.rootDir = rootDir
         self.path = os.path.join(rootDir, include['path'])
-        self.pattern = ' -or -name '.join(include['pattern'].split())
+        self.pattern = ' -name ' + (' -or -name '.join(include['pattern'].split()))
+
+        exclude = '-not -name bundle.index.js -not -path *l10n* -not -path *web/release*'
+        self.pattern = f'{self.path} ( {self.pattern} ) -and ( {exclude}  )'
         self.result = ''
+
+class Lister(Base):
+    def __init__(self, rootDir, include):
+        super().__init__(rootDir, include)
 
     def run(self):
         if not os.path.exists(self.path):
             return
-        self.result = getoutput(['find', self.path, '-name'] + self.pattern.split())
+        self.result = getoutput(['find'] + self.pattern.split())
 
-class Finder(Thread):
+class Finder(Base):
     def __init__(self, rootDir, include):
-        Thread.__init__(self)
-
-        self.path = os.path.join(rootDir, include['path'])
-        self.pattern = ' -or -name '.join(include['pattern'].split())
-        self.result = ''
+        super().__init__(rootDir, include)
 
     def run(self):
         if not os.path.exists(self.path):
             return
 
-        p1 = Popen(['find', self.path, '-name'] + self.pattern.split(), stdout=PIPE)
+        p1 = Popen(['find'] + self.pattern.split(), stdout=PIPE)
         p2 = Popen(['python', getScriptPath('findInFiles.py'), '-nH'] + sys.argv[1:], stdin=p1.stdout, stdout=PIPE)
         self.result = p2.communicate()[0]
-
-class TagLister(Thread):
-    def __init__(self, rootDir, include):
-        Thread.__init__(self)
-        self.path = os.path.join(rootDir, include['path'], include['tagsFile'])
-
-    def run(self):
-        tags = open(self.path).read().splitlines()
-        for idx, tag in enumerate(tags):
-            if not tag.startswith('!'):
-                break
-
-        tags = tags[idx+1:]
-        self.result = "\n".join(tags)
-
 
 def listOrSearchFiles(searchOnlyProj, Runner):
     rootDir = getRootDir()
@@ -67,19 +56,17 @@ def listOrSearchFiles(searchOnlyProj, Runner):
 
     threads = []
     for proj in soln.projects:
-
         # Figure out if the current directory is in the current project
         if (not searchOnlyProj) or proj.includesFile(cwd):
             for inc in proj.includes:
                 th = Runner(rootDir, inc)
                 th.start()
-
                 threads += [th]
 
     result = ''
     for th in threads:
         th.join()
         if len(th.result) > 5:
-            result += th.result
+            result += th.result.decode('utf-8')
 
     return result.split("\n")

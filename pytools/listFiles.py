@@ -1,19 +1,13 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import sys
 from optparse import OptionParser
-from ListSearch import listOrSearchFiles, Lister, TagLister
+from ListSearch import listOrSearchFiles, Lister
 
 parser = OptionParser()
 parser.add_option("-p", "--only-in-proj", dest="onlyInProj", help="search in project only", action="store_true", default=False)
-parser.add_option("-t", "--tags", dest="listTags", help="list tags", action="store_true", default=False)
 
 (options, args) = parser.parse_args()
-klass = None
-if options.listTags:
-    klass = TagLister
-else:
-    klass = Lister
 
-print("\n".join(listOrSearchFiles(options.onlyInProj, klass)))
+print("\n".join(listOrSearchFiles(options.onlyInProj, Lister)))
 
