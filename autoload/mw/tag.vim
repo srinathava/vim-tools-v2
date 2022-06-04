@@ -1,9 +1,10 @@
 let s:scriptDir = expand('<sfile>:p:h')
 function! s:InitScript()
-    call MW_ExecPython("import sys")
-    call MW_ExecPython("import vim")
-    call MW_ExecPython('sys.path += [r"'.s:scriptDir.'"]')
-    call MW_ExecPython("from addSandboxTags import addSandboxTags, getTagFiles")
+    call mw#initpy#Init()
+    pythonx import sys
+    pythonx import vim
+    exec 'pythonx sys.path += [r"'.s:scriptDir.'"]'
+    pythonx from addSandboxTags import addSandboxTags, getTagFiles
 endfunction
 call s:InitScript()
 
@@ -15,7 +16,7 @@ function! mw#tag#AddSandboxTags(fname)
     else
         let &l:tags = &tags . ',' . s:.path.'/cpp_std.tags'
     endif
-    call MW_ExecPython('addSandboxTags(r"'.a:fname.'")')
+    exec 'pythonx addSandboxTags(r"'.a:fname.'")'
 endfunction " }}}
 " mw#tag#InitVimTags:  {{{
 " Description: 
@@ -37,7 +38,7 @@ function! mw#tag#SelectTag(fname)
 
     call mw#utils#AssertThatWeHaveAValidProject()
 
-    let tagsFile = MW_EvalPython('getTagFiles(r"'.a:fname.'")')
+    let tagsFile = pyxeval('getTagFiles(r"'.a:fname.'")')
     let output = system('selectTag.py '.tagsFile)
     if output == ''
         return
@@ -63,7 +64,7 @@ function! mw#tag#AddIncludeImpl(currentFilePath, word)
     let currentModulePath = substitute(currentModulePath, 'MODULE_DEPENDENCIES$', '', '')
 
     let origTagsFile = &l:tags
-    call MW_ExecPython('addSandboxTags(r"'.a:currentFilePath.'", addAllTags=True)')
+    exec 'pythonx addSandboxTags(r"'.a:currentFilePath.'", addAllTags=True)'
     let tags = taglist('\C^'.a:word.'$')
     let &l:tags = origTagsFile
 

@@ -10,13 +10,6 @@ set shell=bash " needed by DiffSubmitFile
 
 com! -nargs=0 CD :exec 'cd '.expand('%:p:h')
 
-let s:external_apps = '//mathworks/hub/share/sbtools/external-apps'
-let isInsideMW = isdirectory(s:external_apps)
-if isInsideMW
-    let $CTAGS_CMD = s:external_apps . '/exuberant-ctags/exuberant-ctags-5.9/exuberant-ctags/ctags'
-    let g:Tlist_Ctags_Cmd = $CTAGS_CMD
-endif
-
 map <F3> <Plug>StartBufExplorer
 map <S-F3> <Plug>SplitBufExplorer
 
@@ -34,52 +27,3 @@ function! MyDiff()
 endfunction
 
 let g:MW_rootDir = expand('<sfile>:p:h:h')
-
-let s:pytoolspath = g:MW_rootDir . '/pytools'
-" MW_ExecPython: executes a command in either of python or python3
-" Description: 
-function! MW_ExecPython(cmd)
-    if has('pythonx')
-        exec 'pythonx '.a:cmd
-    elseif has('python')
-        exec 'python '.a:cmd
-    else
-        exec 'python3 '.a:cmd
-    endif
-endfunction
-
-function! MW_EvalPython(cmd)
-    if has('pythonx')
-        return pyxeval(a:cmd)
-    elseif has('python')
-        return pyeval(a:cmd)
-    else
-        return py3eval(a:cmd)
-    endif
-endfunction
-
-call MW_ExecPython('import sys')
-call MW_ExecPython('import os')
-call MW_ExecPython('sys.path += [r"'.s:pytoolspath.'"]')
-call MW_ExecPython('os.environ["PATH"] += (os.pathsep + "'.s:pytoolspath.'")')
-call MW_ExecPython('os.environ["PATH"] += (os.pathsep + "'.s:pytoolspath.'/selecttag")')
-if isInsideMW
-    if has('python')
-        call MW_ExecPython('sys.path += [r"'.s:external_apps.'/python/python27/site-packages"]')
-    elseif has('python3')
-        call MW_ExecPython('sys.path += [r"'.s:external_apps.'/python/python3/site-packages"]')
-    endif
-endif
-call MW_ExecPython('os.environ["MW_VIM_TOOLS_ROOT"] = "'.g:MW_rootDir.'"')
-
-if has('unix')
-    let $PATH = s:pytoolspath.':'.$PATH
-    let $PATH = s:pytoolspath.'/selecttag:'.$PATH
-else
-    let $PATH = s:pytoolspath.';'.$PATH
-    let $PATH = s:pytoolspath.'/selecttag;'.$PATH
-endif
-
-exec 'set packpath+='.g:MW_rootDir
-packadd vim-tools-menu
-packadd vim-tools-termdebug

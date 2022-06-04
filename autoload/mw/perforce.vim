@@ -4,10 +4,10 @@
 
 let s:scriptDir = expand('<sfile>:p:h')
 function! s:InitScript()
-    call MW_ExecPython("import sys")
-    call MW_ExecPython("import vim")
-    call MW_ExecPython('sys.path += [r"'.s:scriptDir.'"]')
-    call MW_ExecPython("from makeWritable import makeWritable")
+    pythonx import sys
+    pythonx import vim
+    exec 'pythonx sys.path += [r"'.s:scriptDir.'"]'
+    pythonx from makeWritable import makeWritable
 endfunction
 call s:InitScript()
 
@@ -28,7 +28,7 @@ function! mw#perforce#MakeWritable(fileName)
         " in perforce when re-writing.
         unlet! b:MW_fileAddedToPerforce
 
-        call MW_ExecPython('makeWritable("'.a:fileName.'")')
+        exec 'pythonx makeWritable("'.a:fileName.'")'
     endif
 endfunction " }}}
 " mw#perforce#AddFileToPerforce: adds a file to perforce {{{

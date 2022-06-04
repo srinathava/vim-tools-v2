@@ -1,12 +1,9 @@
-" MW_AttachToMatlab:  {{{
+" mw#gdb#AttachToMATLAB:  {{{
 " Description: 
 
 let s:scriptDir = expand('<sfile>:p:h')
-call MW_ExecPython("import sys, vim")
-call MW_ExecPython("sys.path += [r'".s:scriptDir."']")
-call MW_ExecPython("from startMatlab import startMatlab")
 
-function! MW_AttachToMatlab(pid, mode)
+function! mw#gdb#AttachToMATLAB(pid, mode)
     Termdebug
 
     if a:mode == '-nojvm'
@@ -19,12 +16,11 @@ function! MW_AttachToMatlab(pid, mode)
 
     exec 'GDB continue'
 endfunction " }}}
-
-" MW_StartMatlabWithCustomCmdLineArgs{{{
+" mw#gdb#StartMATLABWithCustomCmdLineArgs{{{
 " Description:
 
 let s:customArgs = '-nodesktop -nosplash'
-function! MW_StartMatlabWithCustomCmdLineArgs(attach)
+function! mw#gdb#StartMATLABWithCustomCmdLineArgs(attach)
     echomsg "Provide command line arguments to start MATLAB."
     echohl WarningMsg
     echomsg "Note: Currently -r option can only take a single script name argument. Put all"
@@ -38,13 +34,22 @@ function! MW_StartMatlabWithCustomCmdLineArgs(attach)
     endif
 
     let s:customArgs = cmdLineArgs
-    call MW_StartMatlab(a:attach, s:customArgs)
+    call mw#gdb#StartMATLAB(a:attach, s:customArgs)
 endfunction "}}}
-
-" MW_StartMatlab:  {{{
+" mw#gdb#StartMATLAB:  {{{
 " Description: 
-function! MW_StartMatlab(attach, mode)
-    let pid = MW_EvalPython('startMatlab("'.a:mode.'")')
+let s:python_path_inited = 0
+
+function! mw#gdb#StartMATLAB(attach, mode)
+
+    pythonx import sys, vim
+    if s:python_path_inited == 0
+        exec "pythonx sys.path += [r'".s:scriptDir."']"
+        pythonx from startMatlab import startMatlab
+        let s:python_path_inited = 1
+    endif
+
+    let pid = pyxeval('startMatlab("'.a:mode.'")')
 
     if pid == 0
         echohl Search
@@ -54,10 +59,9 @@ function! MW_StartMatlab(attach, mode)
     endif
 
     if a:attach != 0
-        call MW_AttachToMatlab(pid, a:mode)
+        call mw#gdb#AttachToMATLAB(pid, a:mode)
     endif
 endfunction " }}}
-
 " s:IssuePendingCommands: issues pending GDB IssuePendingCommands {{{
 " Description: 
 function! s:IssuePendingCommands()
@@ -65,9 +69,9 @@ function! s:IssuePendingCommands()
         exec cmd
     endfor
 endfunction " }}}
-" MW_DebugUnitTests:  {{{
+" mw#gdb#UnitTests:  {{{
 " Description: run the C++ unit tests for the current modules
-function! MW_DebugUnitTests(what)
+function! mw#gdb#UnitTests(what)
     let projDir = mw#sbtools#GetCurrentProjDir()
     if projDir == ''
         echohl Error
@@ -135,9 +139,9 @@ function! MW_DebugUnitTests(what)
         au User TermDebugStarted call s:IssuePendingCommands()
     augroup END
 endfunction " }}}
-" MW_DebugCurrentTestPoint:  {{{
+" mw#gdb#CurrentTestPoint:  {{{
 " Description: 
-function! MW_DebugCurrentTestPoint()
+function! mw#gdb#CurrentTestPoint()
     let pattern = '^\s*\w*TEST\s*(\s*\(\w\+\)\s*,\s*\(\w\+\)'
     let [lnum, colnum] = searchpos(pattern, 'bn')
     if lnum == 0
@@ -151,28 +155,9 @@ function! MW_DebugCurrentTestPoint()
     let matches = matchlist(txt, pattern)
     let unitTestName = matches[1].'.'.matches[2]
 
-    call MW_DebugUnitTests('current')
+    call mw#gdb#UnitTests('current')
     let s:on_gdb_started += ['GDB server quick_start_unit --gtest_filter='.unitTestName]
 endfunction " }}}
 
-command! -nargs=* MWDebugMATLAB             :call MW_StartMatlab(1, <f-args>)
-command! -nargs=1 MWDebugUnitTest           :call MW_DebugUnitTests(<f-args>)
-command! -nargs=0 MWDebugCurrentTestPoint   :call MW_DebugCurrentTestPoint()
-
-amenu &Mathworks.&Debug.&1\ MATLAB\ -nojvm          :call MW_StartMatlab(1, '-nojvm')<CR>
-amenu &Mathworks.&Debug.&2\ MATLAB\ -nodesktop      :call MW_StartMatlab(1, '-nodesktop -nosplash')<CR>
-amenu &Mathworks.&Debug.&3\ MATLAB\ desktop         :call MW_StartMatlab(1, '-desktop')<CR>
-amenu &Mathworks.&Debug.&4\ MATLAB\ custom          :call MW_StartMatlabWithCustomCmdLineArgs(1)<CR>
-amenu &Mathworks.&Debug.&Attach\ to\ MATLAB         :call MW_AttachToMatlab('MATLAB', '-nojvm')<CR>
-amenu &Mathworks.&Debug.&current\ unit/pkgtest   :call MW_DebugUnitTests('current')<CR>
-amenu &Mathworks.&Debug.&unittest                :call MW_DebugUnitTests('unit')<CR>
-amenu &Mathworks.&Debug.&pkgtest                 :call MW_DebugUnitTests('pkg')<CR>
-amenu &Mathworks.&Debug.Current\ &Test\ Point     :call MW_DebugCurrentTestPoint()<CR>
-
-amenu &Mathworks.&Run.&1\ MATLAB\ -nojvm        :call MW_StartMatlab(0, '-nojvm')<CR>
-amenu &Mathworks.&Run.&2\ MATLAB\ -nodesktop    :call MW_StartMatlab(0, '-nodesktop -nosplash')<CR>
-amenu &Mathworks.&Run.&3\ MATLAB\ desktop       :call MW_StartMatlab(0, '-desktop')<CR>
-amenu &Mathworks.&Run.&4\ MATLAB\ custom        :call MW_StartMatlabWithCustomCmdLineArgs(0)<CR>
-amenu &Mathworks.&Run.&5\ MATLAB\ -check_malloc :call MW_StartMatlab(0, '-check_malloc')<CR>
 
 " vim: fdm=marker

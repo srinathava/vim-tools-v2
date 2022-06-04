@@ -1,3 +1,4 @@
+
 " ==============================================================================
 " Sandbox utility functions
 " ============================================================================== 
@@ -11,6 +12,11 @@ function! mw#utils#GetRootDir()
     let gitpath = finddir('.git', '.;')
     if gitpath != ''
         return fnamemodify(gitpath, ':p:h:h')
+    endif
+
+    let gitpath = findfile('.git', '.;')
+    if gitpath != ''
+        return fnamemodify(gitpath, ':p:h')
     endif
 
     " Do this last otherwise any file under ~ will find this.

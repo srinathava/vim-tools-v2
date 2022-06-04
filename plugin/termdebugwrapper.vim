@@ -81,7 +81,7 @@ endfunction
 function! s:TermdebugAttach(pid, method)
     let pid = a:pid
     if pid == ''
-        let input = input('Enter the PID or process name to attach to :', 'MATLAB')
+        let input = input('Enter the PID or process name to attach to :')
     else
         let input = pid
     endif
@@ -255,7 +255,3 @@ if has('gui_running')
     call s:InstallRuntimeMenuItems()
     call s:DisableRuntimeMenuItems()
 endif
-
-func s:Debug(msg)
-  exec "pyx log(r'''".a:msg."''')"
-endfunction

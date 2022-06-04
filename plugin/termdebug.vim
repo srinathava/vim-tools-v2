@@ -33,6 +33,14 @@
 "
 " The communication with gdb uses GDB/MI.  See:
 " https://sourceware.org/gdb/current/onlinedocs/gdb/GDB_002fMI.html
+"
+" Modifications by Srinath Avadhanula:
+" # Pending breakpoints
+" # Stack window
+" # Neovim and vim compatible
+" # More flexibility for choosing g:termdebugger
+" # Some bug-fixes (probably specific to my usage/workflow)
+" # Probably badly broke the promptbuffer part of this.
 
 " In case this gets sourced twice.
 if exists(':Termdebug')
