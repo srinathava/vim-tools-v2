@@ -68,7 +68,7 @@ function! mw#gdb#StartMATLAB(attach, mode)
         call mw#gdb#AttachToMATLAB(pid, a:mode)
     endif
 endfunction " }}}
-" s:IssuePendingCommands: issues pending GDB IssuePendingCommands {{{
+" s:IssuePendingCommands: issues pending GDB commands {{{
 " Description: 
 function! s:IssuePendingCommands()
     for cmd in s:on_gdb_started
@@ -76,13 +76,6 @@ function! s:IssuePendingCommands()
     endfor
 endfunction " }}}
 " mw#gdb#UnitTests:  {{{
-" s:IssuePendingCommands: issues pending GDB IssuePendingCommands {{{
-" Description: 
-function! s:IssuePendingCommands()
-    for cmd in s:on_gdb_started
-        exec cmd
-    endfor
-endfunction " }}}
 " Description: run the C++ unit tests for the current modules
 function! mw#gdb#UnitTests(what)
     let projDir = mw#sbtools#GetCurrentProjDir()
