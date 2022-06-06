@@ -27,13 +27,6 @@ endfunction " }}}
 
 let s:customArgs = '-nodesktop -nosplash'
 function! mw#gdb#StartMATLABWithCustomCmdLineArgs(attach)
-    echomsg "Provide command line arguments to start MATLAB."
-    echohl WarningMsg
-    echomsg "Note: Currently -r option can only take a single script name argument. Put all"
-    echomsg "MATLAB commands into an M file and provide the script name as the argument to -r."
-    echomsg " "
-    echohl None
-
     let cmdLineArgs = input('Enter custom command line args: ', s:customArgs)
     if cmdLineArgs == ''
         return
@@ -55,7 +48,7 @@ function! mw#gdb#StartMATLAB(attach, mode)
         let s:python_path_inited = 1
     endif
 
-    let pid = pyxeval('startMatlab("'.a:mode.'")')
+    let pid = pyxeval('startMatlab(r""" '.a:mode.' """)')
 
     if pid == 0
         echohl Search
@@ -63,6 +56,8 @@ function! mw#gdb#StartMATLAB(attach, mode)
         echohl None
         return
     endif
+    let @m = pid
+    echomsg "Started MATLAB. Copied pid [".pid."] to register m. Use <C-r>m to use it"
 
     if a:attach != 0
         call mw#gdb#AttachToMATLAB(pid, a:mode)
