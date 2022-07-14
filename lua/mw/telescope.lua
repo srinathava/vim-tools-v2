@@ -79,6 +79,7 @@ pickers.commands = function(opts)
     {shortcut="",   cmd="MWSplitWithOther lkg", description="Open same file from latest_pass"},
     {shortcut="ti", cmd="MWInitVimTags", description="Initialize Vim tags"},
     {shortcut="ta", cmd="MWAddIncludeForSymbol", description="Add include for current symbol"},
+    {shortcut="rm", cmd="MWRunMATLABLoadSL", description="Run MATLAB (with Simulink load at startup)"},
   })
 end
 

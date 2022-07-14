@@ -1,13 +1,10 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from __future__ import print_function
 import re, time
 import subprocess
 import sys
-try:
-    from subprocess import getoutput
-except ImportError:
-    from commands import getoutput
+from subprocess import getoutput
 
 def startMatlab(extraArgs):
     if ('-nojvm' in extraArgs) or ('-nodesktop' in extraArgs):
@@ -15,11 +12,10 @@ def startMatlab(extraArgs):
     else:
         useXterm = False
 
-    extraArgs = extraArgs.split()
     if useXterm:
-        pid = subprocess.Popen(['xterm', '-e', 'sb', '-skip-sb-startup-checks'] + extraArgs).pid
+        pid = subprocess.Popen('xterm -e sb -skip-sb-startup-checks ' + extraArgs, shell=True).pid
     else:
-        pid = subprocess.Popen(['sb', '-skip-sb-startup-checks'] + extraArgs).pid
+        pid = subprocess.Popen('sb -skip-sb-startup-checks ' + extraArgs, shell=True).pid
 
     # wait for the correct MATLAB process to be loaded.
     n = 0

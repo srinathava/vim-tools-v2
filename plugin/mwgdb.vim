@@ -1,6 +1,7 @@
 command! -nargs=* MWDebugMATLAB             :call mw#gdb#StartMATLAB(1, <f-args>)
 command! -nargs=1 MWDebugUnitTest           :call mw#gdb#UnitTests(<f-args>)
 command! -nargs=0 MWDebugCurrentTestPoint   :call mw#gdb#CurrentTestPoint()
+command! -nargs=0 MWRunMATLABLoadSL         :call mw#gdb#StartMATLAB(0, '-desktop -r "open_system(new_system); bdclose all"')
 
 if has('gui')
     amenu &Mathworks.&Debug.&1\ MATLAB\ -nojvm          :call mw#gdb#StartMATLAB(1, '-nojvm')<CR>
