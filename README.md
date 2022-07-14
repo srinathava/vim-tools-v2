@@ -45,7 +45,7 @@ This only pushes to this repo, but does not yet publish to the `sbvim-runtime` m
 
 ```bash
 cd $d # or wherever you wish to keep this
-git clone git@insidelabs-git.mathworks.com:sbtools/sbvim/sbvim-runtime.git
+git clone --recurse-submodules git@insidelabs-git.mathworks.com:sbtools/sbvim/sbvim-runtime.git
 cd sbvim-runtime
 ./ci/bumpdeps.sh
 git commit # Make sure to add some text like "updating sbvim-tools"
