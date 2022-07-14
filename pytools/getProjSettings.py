@@ -145,13 +145,24 @@ def handleSolution(dom):
 def getProjSettings():
     projSpecFile = searchUpFor('.vimproj.xml')
     if not projSpecFile:
-        homePath = path.join(os.environ['HOME'], '.vimproj.xml')
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        homePath = path.join(dir_path,'../plugin/.vimproj.xml')
         if path.exists(homePath):
             projSpecFile = homePath
 
     if projSpecFile:
         dom = xml.dom.minidom.parseString(open(projSpecFile).read())
         spec = handleSolution(dom)
+        userHomePath = path.join(os.environ['HOME'], '.vimproj.xml')
+        if path.exists(userHomePath):
+            dom = xml.dom.minidom.parseString(open(userHomePath).read())
+            specUser = handleSolution(dom)
+            specNames = []
+            for proj in spec.projects:
+                specNames.append(proj.name)
+            for proj in specUser.projects:
+                if proj.name not in specNames:
+                    spec.projects.append(proj)
         mw_anchor = searchUpFor('mw_anchor')
         if mw_anchor:
             addModuleDependencies(spec.projects, path.dirname(mw_anchor))

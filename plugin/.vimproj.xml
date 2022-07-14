@@ -1,0 +1,93 @@
+<solution>
+    <module path="matlab/toolbox/stateflow/src/stateflow" extraIncludes="*.ccdr *.stub *.yac"></module>
+    <module path="matlab/toolbox/stateflow/src/sf_editor"></module>
+    <module path="matlab/toolbox/stateflow/src/sf_badges"></module>
+    <module path="matlab/toolbox/stateflow/src/sfdi_datamodel_mi"></module>
+    <module path="matlab/toolbox/stateflow/src/sfdi_datamodel" extraIncludes="*.cmof"></module>
+    <module path="matlab/toolbox/stateflow/src/sf_runtime" extraIncludes="*.stub"></module>
+    <module path="matlab/toolbox/stateflow/src/sf_sfun"></module>
+    <module path="matlab/toolbox/stateflow/src/stateflow_resolver"></module>
+    <module path="matlab/toolbox/stateflow/src/sf_variants"></module>
+    <module path="matlab/toolbox/stateflow/src/sf_diagnostics"></module>
+
+    <module path="matlab/toolbox/stateflow/sf_il"></module>
+    <module path="matlab/toolbox/stateflow/sf_shared"></module>
+    <module path="matlab/toolbox/stateflow/sf_xform"></module>
+    <module path="matlab/toolbox/stateflow/sf_services"></module>
+    <module path="matlab/toolbox/stateflow/sf_cdr"></module>
+    <module path="matlab/toolbox/stateflow/sf_analysis"></module>
+    <module path="matlab/toolbox/stateflow/stateflow_plugin"></module>
+    <module path="matlab/toolbox/stateflow/sf_ir" extraIncludes="*.zml"></module>
+    <module path="matlab/toolbox/stateflow/sf_core_services" extraIncludes=".json"></module>
+    <module path="matlab/toolbox/stateflow/reqtable/analysis" extraIncludes="*.m"></module>
+    <module path="matlab/toolbox/stateflow/reqtable/datamodel" extraIncludes="*.zml"></module>
+    <module path="matlab/toolbox/stateflow/reqtable/parser" extraIncludes="*.y"></module>
+    <module path="matlab/toolbox/stateflow/reqtable/semantics" extraIncludes="*.m"></module>
+    <module path="matlab/toolbox/stateflow/reqtable/ui" extraIncludes="*.js *.html *.css"></module>
+    <module path="matlab/toolbox/stateflow/comparisons/src/diff"></module>
+    <module path="matlab/toolbox/stateflow/comparisons/src/plugin"></module>
+    <module path="matlab/toolbox/vnv/requirements/datamodel/src/slreq_model" extraIncludes="*.zml"></module>
+
+    <module path="matlab/src/cg_ir"></module>
+    <module path="matlab/src/emlcoder"></module>
+    <module path="matlab/src/cgir_xform"></module>
+    <module path="matlab/toolbox/shared/cgxe/src/cgxe"></module>
+    <module path="matlab/src/rtwcg"></module>
+    <module path="matlab/src/eml"></module>
+    <module path="matlab/src/simulink"></module>
+
+    <module path="matlab/toolbox/simulink/src/sl_editor"></module>
+
+    <module path="matlab/toolbox/sldv/src/sldv"></module>
+    <module path="matlab/src/dv_core"></module>
+
+    <module path="matlab/src/SLSymbolicExpr"></module>
+    <module path="matlab/src/cgir_algorithm"></module>
+    <module path="matlab/src/cgir_tfl"></module>
+    <module path="matlab/src/cgir_hdl"></module>
+    <module path="matlab/src/cgir_construct"></module>
+    <module path="matlab/src/cgir_cpp_emitter"></module>
+    <module path="matlab/src/cgir_support"></module>
+    <module path="matlab/src/cgir_clair"></module>
+    <module path="matlab/src/cgir_cgel"></module>
+    <module path="matlab/src/cgir_interp"></module>
+
+    <module path="matlab/src/sl_solver"></module>
+    <module path="matlab/src/SimulinkBlock"></module>
+    <module path="matlab/src/sl_simtarget_core"></module>
+    <module path="matlab/src/sl_lang_blocks"></module>
+    <module path="matlab/src/simstruct"></module>
+    <module path="matlab/src/sl_services"></module>
+    <module path="matlab/src/sl_propagation"></module>
+    <module path="matlab/src/sl_graphical_classes"></module>
+
+    <module path="matlab/src/sl_messages"></module>
+    <module path="matlab/src/sl_event_blocks"></module>
+    <module path="matlab/src/sl_engine_classes"></module>
+    <module path="matlab/src/sl_loadsave"></module>
+    <module path="matlab/src/sl_compile"></module>
+    <module path="matlab/src/sl_libraries"></module>
+    <module path="matlab/src/slcg_impl"></module>
+    <module path="matlab/src/sl_types"></module>
+
+
+    <project name="stateflow_mfiles">
+        <include path="matlab/toolbox/stateflow/stateflow" pattern="*.m *.html" />
+        <include path="matlab/toolbox/stateflow/coder" pattern="*.cdr" />
+        <include path="matlab/resources/Stateflow/en" pattern="*.xml" />
+    </project>
+
+    <project name="stateflow_rtw_tlc">
+        <include path="matlab/toolbox/stateflow/src/tlc" pattern="*.tlc" />
+        <include path="matlab/rtw/c/tlc" pattern="*.tlc" />
+    </project>
+
+    <project name="slreq_mfiles">
+        <include path="matlab/toolbox/shared/reqmgt" pattern="*.m" />
+        <include path="matlab/toolbox/shared/slreq" pattern="*.m" />
+    </project>
+
+    <project name="stateflow_toolstrip">
+        <include path="matlab/toolbox/stateflow/ui/studio" pattern="*.json *.m *.png" />
+    </project>
+</solution>

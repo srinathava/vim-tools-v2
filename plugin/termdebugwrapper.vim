@@ -1,3 +1,18 @@
+let s:scriptDir = expand('<sfile>:p:h')
+
+function! LogDebug(msg)
+    let logger_enabled = exists('g:termdebug_logger_enabled') && g:termdebug_logger_enabled
+    if !logger_enabled
+        return{}
+    endif
+    call mw#initpy#Init()
+    pythonx import sys
+    exec 'pythonx sys.path += [r"'.s:scriptDir.'"]'
+    pythonx from init_logging import log
+    exec 'pythonx log(r"'.a:msg.'")'
+endfunction
+
+
 " TermdebugFilenameModifier: modifies the file name for setting breakpoints {{{
 "Description: 
 function! TermdebugFilenameModifier(filepath)
@@ -17,7 +32,15 @@ function! TermDebugGdbCmd(pty)
     let mw_anchor_loc = findfile('mw_anchor', '.;')
     if mw_anchor_loc != ''
         let sbroot = fnamemodify(mw_anchor_loc, ':h')
-        return split('sb -s '.sbroot.' -debug -no-debug-backing-stores -gdb-switches -quiet', ' ')
+        if empty(g:gdbpath)
+            "using sbtools default gdb (gdb-121 as of 7/5/2022)
+            "using vim-tools/plugin/.gdbinit
+            return split('sb -s '.sbroot.' -debug -no-debug-backing-stores -gdb-switches -x -gdb-switches '.s:scriptDir.'/.gdbinit -gdb-switches -quiet', ' ')
+        else
+            "using user specified gdb
+            "using vim-tools/plugin/.gdbinit
+            return split('sb -debug-exe '.g:gdbpath.' -s '.sbroot.' -debug -no-debug-backing-stores -gdb-switches -x -gdb-switches '.s:scriptDir.'/.gdbinit -gdb-switches -quiet', ' ')
+        endif
     elseif executable('sbgdb')
         return ['sbgdb']
     else
@@ -93,15 +116,21 @@ function! s:TermdebugAttach(pid, method)
     if pid !~ '^\d\+$'
         return
     end
-    if s:termdebug_status == 'stopped'
-        Termdebug
-    endif
-
     let s:on_gdb_started = 'GDB '.a:method.' '.pid
+    if s:termdebug_status == 'stopped'
+        "Attach or QuickAttach is called without starting GDB
+        Termdebug
+    else
+        "Attach or QuickAttach is called after starting GDB
+        exec s:on_gdb_started
+        return
+    end
+
     augroup TermdebugWrapperAttach
         au!
         au User TermDebugStarted exec s:on_gdb_started
     augroup END
+
 endfunction " }}}
 
 let s:termdebug_status = 'stopped'
@@ -156,10 +185,10 @@ func! s:InstallMaps()
   call s:CreateMap('<F11>',   ':Step<CR>', 'n')
   call s:CreateMap('<S-F11>', ':GDB finish<CR>', 'n')
   call s:CreateMap('<F12>',   ':GDB finish<CR>', 'n')
-  call s:CreateMap('U',       ':GDB up<CR>', 'n')
-  call s:CreateMap('D',       ':GDB down<CR>', 'n')
-  call s:CreateMap('<C-P>',   ":exec 'GDB print '.expand('<cword>')<CR>", 'n')
-  call s:CreateMap('<C-P>',   'y:GDB print <C-R>"<CR>', 'v')
+  call s:CreateMap('U',       ':call UpStackImpl()<CR>', 'n')
+  call s:CreateMap('D',       ':call DownStackImpl()<CR>', 'n')
+  call s:CreateMap('<C-P>',   ':call PrintHelper()<CR>', 'n')
+  call s:CreateMap('<C-P>',   ':call PrintHelper()<CR>', 'v')
 endfunction " }}}
 " s:RestoreMaps: restores user maps {{{
 function! s:RestoreMaps()
@@ -220,20 +249,29 @@ function! s:InstallRuntimeMenuItems()
 
     amenu &Gdb.-sep3-      <Nop>
 
-    call s:InstallRuntimeMenuItem('a', '&Gdb.&Up\ Stack\ (caller)<Tab>U', ':GDB up<CR>')
-    call s:InstallRuntimeMenuItem('a', '&Gdb.&Down\ Stack\ (callee)<Tab>D', ':GDB down<CR>')
-    call s:InstallRuntimeMenuItem('a', '&Gdb.&Goto\ Frame', ':GDB frame ')
-    call s:InstallRuntimeMenuItem('a', '&Gdb.Sho&w\ Stack', ':Stack<CR>')
+    call s:InstallRuntimeMenuItem('a', '&Gdb.Sho&w\ C\ Stack', ':Stack<CR>')
+    call s:InstallRuntimeMenuItem('a', '&Gdb.Show\ &MATLAB\ Stack', ':StackM<CR>')
+    call s:InstallRuntimeMenuItem('a', '&Gdb.Show\ H&ybrid\ Stack', ':StackH<CR>')
 
     amenu &Gdb.-sep4-      <Nop>
 
+    call s:InstallRuntimeMenuItem('a', '&Gdb.&Up\ Stack\ (caller)<Tab>U', ':call UpStackImpl()<CR>')
+    call s:InstallRuntimeMenuItem('a', '&Gdb.&Down\ Stack\ (callee)<Tab>D', ':call DownStackImpl()<CR>')
+    call s:InstallRuntimeMenuItem('a', '&Gdb.&Goto\ Frame', ':GDB frame ')
+
+    amenu &Gdb.-sep5-      <Nop>
+
     " print value at cursor
-    call s:InstallRuntimeMenuItem('n', '&Gdb.&Print\ Value<Tab>Ctrl-P', ':exec "GDB print ".expand("<cword>"))<CR>')
-    call s:InstallRuntimeMenuItem('v', '&Gdb.&Print\ Value', 'y:GDB print <C-R>""<CR>')
+    call s:InstallRuntimeMenuItem('n', '&Gdb.&Print\ Value<Tab>Ctrl-P', ':call PrintHelper()<CR>')
+    call s:InstallRuntimeMenuItem('v', '&Gdb.&Print\ Value<Tab>Ctrl-P', ':call PrintHelper()<CR>')
     call s:InstallRuntimeMenuItem('n', '&Gdb.Run\ Command', ':GDB<Space>')
 
-    amenu &Gdb.-sep5- <Nop>
+    amenu &Gdb.-sep6- <Nop>
 
+
+    amenu &Gdb.-sep7- <Nop>
+
+    call s:InstallRuntimeMenuItem('a', '&Gdb.Show\ C\ Stack\ (&Load\ Symbols)', ':LoadAndShowStack<CR>')
     call s:InstallRuntimeMenuItem('a', '&Gdb.Handle\ SIGSEGV', ':GDB handle SIGSEGV stop print<CR>')
     call s:InstallRuntimeMenuItem('a', '&Gdb.Ignore\ SIGSEGV', ':GDB handle SIGSEGV nostop noprint<CR>')
 endfunction " }}}
@@ -244,7 +282,7 @@ command! -nargs=? QuickAttach :call s:TermdebugAttach(<q-args>, 'quick_attach_sf
 
 if has('gui_running')
     amenu &Gdb.Start\ Gdb               :Termdebug<CR>
-    call s:InstallRuntimeMenuItem('a', '&Gdb.Show\ GDB\ Ter&minal', ':ShowGdb<CR>')
+    call s:InstallRuntimeMenuItem('a', '&Gdb.S&how\ GDB\ Terminal', ':ShowGdb<CR>')
     amenu &Gdb.&Attach        :Attach<CR>
     amenu &Gdb.&Quick\ Attach :QuickAttach<CR>
 
@@ -255,3 +293,4 @@ if has('gui_running')
     call s:InstallRuntimeMenuItems()
     call s:DisableRuntimeMenuItems()
 endif
+
