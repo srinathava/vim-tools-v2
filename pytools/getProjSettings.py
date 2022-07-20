@@ -2,6 +2,7 @@
 
 import xml.dom.minidom
 import os
+import re
 from os import path
 from pathUtils import searchUpFor
 
@@ -26,8 +27,9 @@ class Solution:
             p.rootDir = rootDir
 
 class Project:
-    def __init__(self, name, depends):
+    def __init__(self, name, dllname, depends):
         self.name = name
+        self.dllname = dllname
         self.includes = []
         self.exports = []
         self.depends = depends
@@ -52,10 +54,11 @@ class Project:
         self.exports.append({'path': path, 'pattern': pattern, 'tagsFile': '%s.exp.tags' % self.name})
 
     def __str__(self):
-        return ("%s (%s):"
+        return ("name:%s (path:%s):"
+                "\n   dllname: %s"
                 "\n   includes: %s"
                 "\n   exports: %s"
-                "\n   depends: %s") % (self.name, self.path, self.includes, self.exports, ' '.join(self.depends))
+                "\n   depends: %s") % (self.name, self.path, self.dllname, self.includes, self.exports, ' '.join(self.depends))
 
 def getText(doms):
     txt = ''
@@ -68,7 +71,8 @@ def getText(doms):
 def handleProj(dom):
     name = dom.getAttribute('name')
     depends = getText(dom.getElementsByTagName('depends')).strip().split()
-    proj = Project(name, depends)
+    moduleDLLName = ""
+    proj = Project(name, moduleDLLName, depends)
 
     for inc_dom in dom.getElementsByTagName('include'):
         proj.addInclude(inc_dom.getAttribute('path'), inc_dom.getAttribute('pattern'))
@@ -78,12 +82,21 @@ def handleProj(dom):
 
     return proj
 
-def handleModule(dom):
+def handleModule(dom,rootDir):
     modPath = dom.getAttribute('path')
     depends = []
 
     name = path.basename(modPath)
-    proj = Project(name, depends)
+
+    moduleDLLName = ""
+    makeFile = path.join(rootDir, modPath, 'Makefile')
+    if path.isfile(makeFile):
+        modnameAssignText = re.search("MODNAME([\s:]*)=(.*)\n",open(makeFile).read())
+        if modnameAssignText != None:
+             moduleDLLName = modnameAssignText.group(2).strip()
+
+
+    proj = Project(name, moduleDLLName, depends)
     proj.path = modPath
 
     incPattern = '*.[ch]pp *.c *.h'
@@ -100,13 +113,13 @@ def handleModule(dom):
 
     proj.addInclude(derivedSrc, '*.[ch]pp *.c')
     proj.addExport(derivedInc, '*.hpp *.h')
-
     return proj
 
 def addModuleDependencies(modules, rootDir):
     moduleNames = set()
     [moduleNames.add(mod.name) for mod in modules]
-
+    dllNames = []
+    [dllNames.append(mod.dllname) for mod in modules]
     for mod in modules:
         if not mod.path:
             continue
@@ -122,6 +135,9 @@ def addModuleDependencies(modules, rootDir):
             if depName.startswith('='):
                 depName = depName[1:]
 
+            if depName and depName in dllNames:
+                depName = modules[dllNames.index(depName)].name
+
             if depName in moduleNames:
                 mod.depends.append(depName)
             elif depName.startswith('libmw'):
@@ -129,7 +145,7 @@ def addModuleDependencies(modules, rootDir):
                 if depName in moduleNames:
                     mod.depends.append(depName)
 
-def handleSolution(dom):
+def handleSolution(dom, rootDir):
     soln = Solution()
 
     project_doms = dom.getElementsByTagName('project')
@@ -138,12 +154,17 @@ def handleSolution(dom):
 
     modules = dom.getElementsByTagName('module')
     for module in modules:
-        soln.projects.append(handleModule(module))
+        soln.projects.append(handleModule(module, rootDir))
 
     return soln
 
 def getProjSettings():
     projSpecFile = searchUpFor('.vimproj.xml')
+    mw_anchor = searchUpFor('mw_anchor')
+    if mw_anchor:
+        rootDir = path.dirname(mw_anchor)
+    else:
+        rootDir = '.'
     if not projSpecFile:
         dir_path = os.path.dirname(os.path.realpath(__file__))
         homePath = path.join(dir_path,'../plugin/.vimproj.xml')
@@ -152,18 +173,17 @@ def getProjSettings():
 
     if projSpecFile:
         dom = xml.dom.minidom.parseString(open(projSpecFile).read())
-        spec = handleSolution(dom)
+        spec = handleSolution(dom,rootDir)
         userHomePath = path.join(os.environ['HOME'], '.vimproj.xml')
         if path.exists(userHomePath):
             dom = xml.dom.minidom.parseString(open(userHomePath).read())
-            specUser = handleSolution(dom)
+            specUser = handleSolution(dom,rootDir)
             specNames = []
             for proj in spec.projects:
                 specNames.append(proj.name)
             for proj in specUser.projects:
                 if proj.name not in specNames:
                     spec.projects.append(proj)
-        mw_anchor = searchUpFor('mw_anchor')
         if mw_anchor:
             addModuleDependencies(spec.projects, path.dirname(mw_anchor))
 

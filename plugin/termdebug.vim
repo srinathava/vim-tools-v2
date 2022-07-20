@@ -371,7 +371,10 @@ endfunc
 func s:OnGdbMainOutput(dict, chan, msg)
   if a:msg =~ 'hybrid-frame=' && g:stacktype == 'h'
       let g:raw_h_stackText = g:raw_h_stackText.a:msg
-      if a:msg =~ 'last-hybrid-frame='
+      if a:msg =~ 'error-hybrid-frame='
+          echo 'Error creating hybrid stack. Report it to Srinath. See /tmp/hybridstacklog.mat for error logs'
+          return
+      elseif a:msg =~ 'last-hybrid-frame='
           let g:raw_h_stackText = substitute(g:raw_h_stackText,"@","\"","g")
           let g:raw_h_stackText = substitute(g:raw_h_stackText,"last-hybrid-frame=","frame=","g")
           let g:raw_h_stackText = substitute(g:raw_h_stackText,"hybrid-frame=","frame=","g")
@@ -379,22 +382,6 @@ func s:OnGdbMainOutput(dict, chan, msg)
           let winnum = s:ShowStackPre()
           call win_gotoid(curwinid)
           echo 'Loaded hybrid stack.'
-          call s:HandleStackInfo(g:raw_h_stackText)
-      endif
-  endif
-  if a:msg =~ 'received-hybrid-stack' && g:stacktype == 'hu'
-      echo 'Loaded hybrid stack. DONE'
-      let g:raw_h_stackText = a:msg
-      let g:temp1 = a:msg
-      let framePrefix = 'received-hybrid-stack:'
-      let framePrefixStart = stridx(g:raw_h_stackText,framePrefix)
-      if framePrefixStart >= 0
-          let frameStart = framePrefixStart + len(framePrefix)
-          let g:raw_h_stackText = g:raw_h_stackText[frameStart:]
-          let g:raw_h_stackText = substitute(g:raw_h_stackText,"@","\"","g")
-          let curwinid = win_getid()
-          let winnum = s:ShowStackPre()
-          call win_gotoid(curwinid)
           call s:HandleStackInfo(g:raw_h_stackText)
       endif
   endif
@@ -976,14 +963,11 @@ func s:createHybridStack(msg)
     if len(split(g:minterleavefcn," ")) >= len(g:lminterleaveframeno)
         return
     endif
-    call add(g:msg2,a:msg)
     let msgtoken1 = split(a:msg[stridx(a:msg,'#')+1:],' ')
     let g:minterleaveframeno= g:minterleaveframeno.msgtoken1[0]." "
-    call add(g:msg2,msgtoken1[0])
     let msgtoken2 = split(a:msg[stridx(a:msg,'fcn_name='):],')')
     let msgtoken3 = split(msgtoken2[0],' ')
     let g:minterleavefcn= g:minterleavefcn.msgtoken3[1]." "
-    call add(g:msg2,msgtoken3[1])
     if msgtoken1[0] != g:minterleavelastframe
         return
     endif
@@ -1007,9 +991,25 @@ func s:CommOutput(chan, msg)
     if msg == ''
         continue
     endif
-    if msg =~ '^\(\*stopped\|\*running\|=thread-selected\)'
+    if msg =~ '^\(\*stopped\|\*running\)'
+        "is called when breakpoint is hit
         if g:stacktype != 'h'
             call s:HandleCursor(msg)
+            call s:HandleFrameInfo(msg)
+        endif
+    elseif msg =~ '^=thread-selected'
+        "is called by 'frame'
+        if g:stacktype != 'h'
+            call s:HandleFrameInfo(msg)
+            "handleCursor handles two functionalities 
+            "(1) open file:line for stack frame 
+            "(2) update stack text
+            "we need only (1) here
+            call s:HandleCursor(msg, 0) 
+        end
+    elseif msg =~ '^\^done,frame='
+        "is called by -stack-info-frame
+        if g:stacktype != 'h'
             call s:HandleFrameInfo(msg)
         endif
     elseif msg =~ '\^done,bkpt=' || msg =~ '=breakpoint-created,'
@@ -1021,14 +1021,11 @@ func s:CommOutput(chan, msg)
     elseif msg =~ '^=breakpoint-modified,'
         call s:HandleBreakpointModified(msg)
     elseif msg =~ '^\^done,stack='
+        "is called by bt or -stack-list-frames 
         let g:raw_c_stackText = msg
         if g:stacktype != 'h'
             echo "Loaded C stack"
             call s:HandleStackInfo(msg)
-        endif
-    elseif msg =~ '^\^done,frame='
-        if g:stacktype != 'h'
-            call s:HandleFrameInfo(msg)
         endif
     elseif msg =~ '^=thread-group-added'
         let g:gdbstatus='gdb-started'
@@ -1118,7 +1115,6 @@ func s:InstallCommands()
   command! -nargs=? Until call s:Until(<q-args>)
   command! -nargs=? Jump call s:Jump(<q-args>)
   command! Clear call s:ClearBreakpoint()
-  "command! Step call s:SendCommand('-exec-step')
   command! Step call s:StepWrapper()
   command! Over call s:OverWrapper()
   " Use finish so that GDB displays the helpful return value
@@ -1343,9 +1339,9 @@ endfunc
 
 function! s:LoadAndShowStackImpl(level)
     let s:ulevel = input('Stack depth to load 1/2/3/.../all :')
+    echo ".  Loading symbols required for current stack. It might take ~20s. Wait for done message."
     call s:SendCommand('sb-load-stack '.s:ulevel)
     call s:ShowStack()
-    echo ".  Loading symbols required for current stack. It might take ~10s. Wait for done message."
 endfunction
 
 
@@ -1390,8 +1386,6 @@ func! s:Wait(mil)
     exe 'sleep '.timetowait
 endfunction 
 
-let g:msg2 = []
-let g:msg3 = []
 let g:mstacklevel = -1
 let g:cstacklevel = -1
 let g:stacktype = ''
@@ -1409,7 +1403,7 @@ func s:ShowHybridStack()
   let g:minterleaveframeno=""
   let g:minterleavefcn=""
   let g:minterleavelastframe=''
-  echo "Loading hybrid stack. It might take ~10s. Wait for done message."
+  echo "Loading hybrid stack. It might take ~20s. Wait for done message."
   call s:SendCommand('sb-load-stack 200')
   call s:SendCommand('-stack-list-frames 0 200')
   call s:SendCommand('mframe')
@@ -1516,7 +1510,6 @@ func s:GotoSelectedFrameLineText(lineText)
     if empty(s:hFrameInfo)
         return
     end
-    call add(g:msg3, s:hFrameInfo)
     let hLineTextInfo = split(a:lineText)
     call s:HandleCursor(s:hFrameInfo, 0)
     if hLineTextInfo[4][0:0] == 'c'
@@ -1757,7 +1750,7 @@ endfunc
 
 " Handle stopping and running message from gdb.
 " Will update the sign that shows the current position.
-func s:HandleCursor(msg, updateStackPointer=1)
+func s:HandleCursor(msg, updateStackText=1)
 
   if a:msg =~ '^\*stopped'
     let s:stopped = 1
@@ -1787,12 +1780,12 @@ func s:HandleCursor(msg, updateStackPointer=1)
       setlocal signcolumn=yes
 
       call foreground()
-      if g:stacktype =='c'
+      if g:stacktype =='c' && a:updateStackText
          call s:UpdateStackIfVisible()
          redraw
-     elseif g:stacktype == 'h' &&  a:updateStackPointer
+     elseif g:stacktype == 'h' &&  a:updateStackText
          call s:ShowHybridStack()
-     elseif g:stacktype == 'm' &&  a:updateStackPointer
+     elseif g:stacktype == 'm' &&  a:updateStackText
          call s:ShowMStack()
      endif
     endif
