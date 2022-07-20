@@ -187,8 +187,8 @@ func! s:InstallMaps()
   call s:CreateMap('<F12>',   ':GDB finish<CR>', 'n')
   call s:CreateMap('U',       ':call UpStackImpl()<CR>', 'n')
   call s:CreateMap('D',       ':call DownStackImpl()<CR>', 'n')
-  call s:CreateMap('<C-P>',   ':call PrintHelper()<CR>', 'n')
-  call s:CreateMap('<C-P>',   ':call PrintHelper()<CR>', 'v')
+  call s:CreateMap('<C-P>',   ':call PrintHelper(0)<CR>', 'n')
+  call s:CreateMap('<C-P>',   'y:call PrintHelper(1)<CR>', 'v')
 endfunction " }}}
 " s:RestoreMaps: restores user maps {{{
 function! s:RestoreMaps()
@@ -262,8 +262,8 @@ function! s:InstallRuntimeMenuItems()
     amenu &Gdb.-sep5-      <Nop>
 
     " print value at cursor
-    call s:InstallRuntimeMenuItem('n', '&Gdb.&Print\ Value<Tab>Ctrl-P', ':call PrintHelper()<CR>')
-    call s:InstallRuntimeMenuItem('v', '&Gdb.&Print\ Value<Tab>Ctrl-P', ':call PrintHelper()<CR>')
+    call s:InstallRuntimeMenuItem('n', '&Gdb.&Print\ Value<Tab>Ctrl-P', ':call PrintHelper(0)<CR>')
+    call s:InstallRuntimeMenuItem('v', '&Gdb.&Print\ Value<Tab>Ctrl-P', 'y:call PrintHelper(1)<CR>')
     call s:InstallRuntimeMenuItem('n', '&Gdb.Run\ Command', ':GDB<Space>')
 
     amenu &Gdb.-sep6- <Nop>

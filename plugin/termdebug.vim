@@ -856,7 +856,6 @@ func s:EndPromptDebug(job, status)
 
   call s:EndDebugCommon()
   unlet s:gdbwin
-  " call ch_log("Returning from EndPromptDebug()")
 endfunc
 func s:getSharedLibraryNameFromCxxModule(cxxModulePath, cxxModuleFolderName)
     let s:sbRootDir = mw#utils#GetRootDir()
@@ -871,11 +870,12 @@ func s:getSharedLibraryNameFromCxxModule(cxxModulePath, cxxModuleFolderName)
     return trim(s:cxxModuleName).".so"
 endfunc
 
-function! PrintHelper()
-    let varName = expand('<cword>')
-    "if varName[len(varName)-1]=="\""
-     "let varName = varName[0:len(varName)-3]
-    "endif
+function! PrintHelper(isVisual)
+    if a:isVisual
+	let varName = @"
+    else
+	let varName = expand('<cword>')
+    endif
     if g:mstacklevel >= 0
         let pmlCmd = "printf \"%s\", SF::EvaluateCmdAtMATLABStackLevel(".g:mstacklevel.",\"".varName."\")"."\r"
         call s:TermSendKeys(s:gdbjob, pmlCmd)
@@ -1105,7 +1105,7 @@ func s:ContinueWrapper()
   if s:way == 'prompt'
     call s:SendCommand('continue')
   else
-    call s:TermSendKeys(s:gdbjob, "continue\r")
+    call TermDebugSendCommand("continue")
   endif
 endfunc
 " Install commands in the current window to control the debugger.
@@ -1541,7 +1541,7 @@ func s:GotoSelectedFrameLineText(lineText)
     " =thread-selected message on the MI console which triggers
     " s:HandleCursor
     let g:mstacklevel = -1
-    call s:SendCommand('frame '.level)
+    call TermDebugSendCommand('frame '.level)
   endif
 endfunc
 
@@ -1631,14 +1631,6 @@ func s:UpdateStackWindow(msg)
     let startpos += strlen(frame)
   endwhile
 
-  if numnewframes >= winheight(0)-1
-    " There is a slim chance that we might have resized the stack
-    " window after issuing the -stack-list-frames command. In which
-    " case, this line will not get emitted
-    "call append(line('$'), printf('Press <tab> to show more frames. (next frame = %d)', level+1))
-  else
-    "call append(line('$'), 'No more frames')
-  endif
   if getline(1) == ''
     call deletebufline(s:stackbuf, 1)
   endif
