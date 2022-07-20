@@ -9,3 +9,5 @@ setlocal comments+=://
 
 setlocal completeopt=menu,preview,longest
 setlocal pumheight=10
+
+let &l:makeprg='g++ -g -O0 -std=c++2a %'
