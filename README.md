@@ -38,7 +38,17 @@ Notice `vim-tools-dev` instead of `vim-tools`. This lets you use the version of 
 
 ```bash
 cd ~/.vim/pack/mw/opt/vim-tools-dev
-# git commit etc.
+git add -u
+git commit -m "<your commit message>"
+
+#create reviewboard request
+#you need to install RBTools for creating reviewboard request. see https://www.reviewboard.org/downloads/rbtools/
+rbt post 
+#address reviewer comments, and commit new changes. Keep same commit message as before
+git commit -m "<your commit message, needs to be same as earlier>"
+#update RB
+rbt post -u
+#after getting ship-it from reviewer push the changes
 git push
 ```
 This only pushes to this repo, but does not yet publish to the `sbvim-runtime` mirror. To do that:
