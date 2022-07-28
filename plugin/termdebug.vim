@@ -42,12 +42,6 @@
 " # Some bug-fixes (probably specific to my usage/workflow)
 " # Probably badly broke the promptbuffer part of this.
 
-" In case this gets sourced twice.
-if exists(':Termdebug')
-  finish
-endif
-
-
 let s:scriptDir = expand('<sfile>:p:h')
 function! s:InitDebugLogging()
     call mw#initpy#Init()
@@ -88,17 +82,44 @@ if !exists('g:termdebugger')
   let g:termdebugger = 'gdb'
 endif
 
-let s:pc_id = 12
-let s:asm_id = 13
-let s:break_id = 13  " breakpoint number is added to this
-let s:stopped = 1
+" Define global variables. Allow re-sourcing file without resetting script
+" local variables.
+if !exists('g:termdebug_reset_vars') || g:termdebug_reset_vars
+  let g:termdebug_reset_vars = 0
 
-let s:parsing_disasm_msg = 0
-let s:asm_lines = []
-let s:asm_addr = ''
+  let s:gdb_started = 0
+  let s:breakpoints = {}
 
-let s:debug_log = ''
-func s:Debug(msg)
+  let s:breakpoint_signs = {}
+  let s:winbar_winids = []
+
+  let s:ignoreEvalError = 0
+  let s:evalFromBalloonExpr = 0
+  let s:pendingOutput = ''
+
+  let s:pc_id = 12
+  let s:asm_id = 13
+  let s:break_id = 13  " breakpoint number is added to this
+  let s:stopped = 1
+
+  let s:parsing_disasm_msg = 0
+  let s:asm_lines = []
+  let s:asm_addr = ''
+
+  let s:collecting_hybrid_stack = 0
+  let s:hybrid_stack = ''
+
+  let s:debug_log = ''
+
+  let s:current_frame_type = ''
+  let s:current_frame_idx = -1
+  let s:current_stack_type = ''
+
+  let s:pending_breakpoint_files = {}
+  let s:pending_breakpoint_dlls = {}
+endif
+
+func! s:Debug(msg)
   let s:debug_log .= a:msg . "\n"
 endfunction
 command -nargs=0 TermLog :echo s:debug_log
@@ -106,11 +127,11 @@ command -nargs=0 TermLog :echo s:debug_log
 " Take a breakpoint number as used by GDB and turn it into an integer.
 " The breakpoint may contain a dot: 123.4 -> 123004
 " The main breakpoint has a zero subid.
-func s:Breakpoint2SignNumber(id, subid)
+func! s:Breakpoint2SignNumber(id, subid)
   return s:break_id + a:id * 1000 + a:subid
 endfunction
 
-func s:Highlight(init, old, new)
+func! s:Highlight(init, old, new)
   let default = a:init ? 'default ' : ''
   if a:new ==# 'light' && a:old !=# 'light'
     exe "hi " . default . "debugPC term=reverse ctermbg=lightblue guibg=lightblue"
@@ -124,18 +145,18 @@ endfunc
 call s:Highlight(1, '', &background)
 au ColorScheme * call s:Highlight(1, '', &background)
 
-func s:StartDebug(bang, ...)
+func! s:StartDebug(bang, ...)
   " First argument is the command to debug, second core file or process ID.
   call s:Debug('+StartDebug')
   call s:StartDebug_internal({'gdb_args': a:000, 'bang': a:bang})
 endfunc
 
-func s:StartDebugCommand(bang, ...)
+func! s:StartDebugCommand(bang, ...)
   " First argument is the command to debug, rest are run arguments.
   call s:StartDebug_internal({'gdb_args': [a:1], 'proc_args': a:000[1:], 'bang': a:bang})
 endfunc
 
-func s:StartDebug_internal(dict)
+func! s:StartDebug_internal(dict)
   if exists('s:gdbwin')
     echoerr 'Terminal debugger already running, cannot run two'
     return
@@ -148,6 +169,9 @@ func s:StartDebug_internal(dict)
   let s:ptywin = 0
   let s:pid = 0
   let s:asmwin = 0
+
+  let s:pending_breakpoint_files = {}
+  let s:pending_breakpoint_dlls = {}
 
   if exists('#User#TermdebugStartPre')
     doauto <nomodeline> User TermdebugStartPre
@@ -206,7 +230,7 @@ func s:StartDebug_internal(dict)
   endif
 endfunc
 
-func s:CloseBuffers()
+func! s:CloseBuffers()
   if exists('s:ptyjob')
     call s:WipeJobBuffer(s:ptyjob)
   endif
@@ -218,7 +242,7 @@ func s:CloseBuffers()
   unlet! s:gdbwin
 endfunc
 
-func s:UseSeparateTTYForProgram()
+func! s:UseSeparateTTYForProgram()
   return !exists('g:termdebug_separate_tty') || g:termdebug_separate_tty
 endfunc
 
@@ -305,7 +329,7 @@ function! s:TermStart(cmd, opts)
 	\ }
 endfunction
 
-func s:StartDebug_term(dict)
+func! s:StartDebug_term(dict)
   let usetty = s:UseSeparateTTYForProgram()
   let pty = ''
   if usetty
@@ -368,23 +392,7 @@ func s:StartDebug_term(dict)
   endif
 endfunc
 
-func s:OnGdbMainOutput(dict, chan, msg)
-  if a:msg =~ 'hybrid-frame=' && g:stacktype == 'h'
-      let g:raw_h_stackText = g:raw_h_stackText.a:msg
-      if a:msg =~ 'error-hybrid-frame='
-          echo 'Error creating hybrid stack. Report it to Srinath. See /tmp/hybridstacklog.mat for error logs'
-          return
-      elseif a:msg =~ 'last-hybrid-frame='
-          let g:raw_h_stackText = substitute(g:raw_h_stackText,"@","\"","g")
-          let g:raw_h_stackText = substitute(g:raw_h_stackText,"last-hybrid-frame=","frame=","g")
-          let g:raw_h_stackText = substitute(g:raw_h_stackText,"hybrid-frame=","frame=","g")
-          let curwinid = win_getid()
-          let winnum = s:ShowStackPre()
-          call win_gotoid(curwinid)
-          echo 'Loaded hybrid stack.'
-          call s:HandleStackInfo(g:raw_h_stackText)
-      endif
-  endif
+func! s:OnGdbMainOutput(dict, chan, msg)
   if s:foundGdbPrompt
       return
   endif
@@ -401,7 +409,7 @@ func s:OnGdbMainOutput(dict, chan, msg)
   endif
 endfunc
 
-func s:HasGdbProcessExited()
+func! s:HasGdbProcessExited()
   if has('nvim')
     return nvim_get_chan_info(s:gdbjob['jobid']) == {}
   else
@@ -410,7 +418,7 @@ func s:HasGdbProcessExited()
   endif
 endfunc
 
-func s:TermGetLine(job, lnum)
+func! s:TermGetLine(job, lnum)
   let bufid = a:job['buffer']
   if has('nvim')
     return get(getbufline(bufid, a:lnum), 0, '')
@@ -419,7 +427,7 @@ func s:TermGetLine(job, lnum)
   endif
 endfunction
 
-func s:StartDebug_term_step2(dict)
+func! s:StartDebug_term_step2(dict)
   " Connect gdb to the communication pty, using the GDB/MI interface
   call s:Debug('getting to s:StartDebug_term_step2')
 
@@ -488,7 +496,7 @@ func s:StartDebug_term_step2(dict)
   call s:StartDebugCommon(a:dict)
 endfunc
 
-func s:StartDebug_prompt(dict)
+func! s:StartDebug_prompt(dict)
   " Open a window with a prompt buffer to run gdb in.
   if s:vertical
     vertical new
@@ -586,9 +594,7 @@ func s:StartDebug_prompt(dict)
   endif
 endfunc
 
-let s:gdb_started = 0
-let s:breakpoints = {}
-func s:StartDebugCommon(dict)
+func! s:StartDebugCommon(dict)
   " Sign used to highlight the line where the program has stopped.
   " There can be only one.
   sign define debugPC linehl=debugPC
@@ -649,7 +655,7 @@ func s:StartDebugCommon(dict)
   endif
 endfunc
 " Send a command to gdb.  "cmd" is the string without line terminator.
-func s:SendCommand(cmd)
+func! s:SendCommand(cmd)
   " call ch_log('sending to gdb: ' . a:cmd)
   if s:way == 'prompt'
     call ch_sendraw(s:gdb_channel, a:cmd . "\n")
@@ -659,7 +665,7 @@ func s:SendCommand(cmd)
 endfunc
 
 " This is global so that a user can create their mappings with this.
-func TermDebugSendCommand(cmd)
+func! TermDebugSendCommand(cmd)
   if s:way == 'prompt'
     call ch_sendraw(s:gdb_channel, a:cmd . "\n")
   else
@@ -674,13 +680,13 @@ func TermDebugSendCommand(cmd)
 endfunc
 
 " Function called when entering a line in the prompt buffer.
-func s:PromptCallback(text)
+func! s:PromptCallback(text)
   call s:SendCommand(a:text)
 endfunc
 
 " Function called when pressing CTRL-C in the prompt buffer and when placing a
 " breakpoint.
-func s:PromptInterrupt()
+func! s:PromptInterrupt()
   " call ch_log('Interrupting gdb')
   if has('win32')
     " Using job_stop() does not work on MS-Windows, need to send SIGTRAP to
@@ -696,7 +702,7 @@ func s:PromptInterrupt()
 endfunc
 
 " Function called when gdb outputs text.
-func s:GdbOutCallback(channel, text)
+func! s:GdbOutCallback(channel, text)
   " call ch_log('received from gdb: ' . a:text)
 
   " Drop the gdb prompt, we have our own.
@@ -730,7 +736,7 @@ endfunc
 
 " Decode a message from gdb.  quotedText starts with a ", return the text up
 " to the next ", unescaping characters.
-func s:DecodeMessage(quotedText)
+func! s:DecodeMessage(quotedText)
   if a:quotedText[0] != '"'
     echoerr 'DecodeMessage(): missing quote in ' . a:quotedText
     return
@@ -758,7 +764,7 @@ func s:DecodeMessage(quotedText)
 endfunc
 
 " Extract the "name" value from a gdb message with fullname="name".
-func s:GetFullname(msg)
+func! s:GetFullname(msg)
   if a:msg !~ 'fullname'
     return ''
   endif
@@ -770,18 +776,18 @@ func s:GetFullname(msg)
   return name
 endfunc
 
-func s:WipeJobBuffer(job)
+func! s:WipeJobBuffer(job)
   if !empty(a:job) && a:job['buffer'] > 0
     exe 'bwipe! '.a:job['buffer']
   endif
 endfunc
 
-func s:EndTermDebug(...)
+func! s:EndTermDebug(...)
   call s:CloseBuffers()
   call s:EndDebugCommon()
 endfunc
 
-func s:EndDebugCommon()
+func! s:EndDebugCommon()
   let curwinid = win_getid(winnr())
 
   " Restore 'signcolumn' in all buffers for which it was set.
@@ -832,7 +838,7 @@ func s:EndDebugCommon()
   call sign_unplace('TermDebugBreakpoints')
 endfunc
 
-func s:EndPromptDebug(job, status)
+func! s:EndPromptDebug(job, status)
   let curwinid = win_getid(winnr())
   call win_gotoid(s:gdbwin)
   set nomodified
@@ -844,227 +850,131 @@ func s:EndPromptDebug(job, status)
   call s:EndDebugCommon()
   unlet s:gdbwin
 endfunc
-func s:getSharedLibraryNameFromCxxModule(cxxModulePath, cxxModuleFolderName)
-    let s:sbRootDir = mw#utils#GetRootDir()
-    let s:matlabRootDir = s:sbRootDir."/matlab/"
-    let s:cxxModuleMakefileMODNAMEStr = system("grep \"MODNAME *:=\" -r ".s:matlabRootDir."/".a:cxxModulePath." --include=Makefile")
-    if empty(s:cxxModuleMakefileMODNAMEStr) || stridx(s:cxxModuleMakefileMODNAMEStr,"MODNAME") < 0 || stridx(s:cxxModuleMakefileMODNAMEStr,":=") < 0
-        let s:cxxModuleName = "libmw".a:cxxModuleFolderName
-    else
-        let s:cxxModuleMakefileMODNAMEStrSplit = split(s:cxxModuleMakefileMODNAMEStr,":=")
-        let s:cxxModuleName = trim(s:cxxModuleMakefileMODNAMEStrSplit[1])
-    endif
-    return trim(s:cxxModuleName).".so"
-endfunc
 
-function! PrintHelper(isVisual)
+func! TermDebugPrintHelper(isVisual)
     if a:isVisual
 	let varName = @"
     else
 	let varName = expand('<cword>')
     endif
-    if g:mstacklevel >= 0
-        let pmlCmd = "printf \"%s\", SF::EvaluateCmdAtMATLABStackLevel(".g:mstacklevel.",\"".varName."\")"."\r"
+    if s:current_frame_type == "m"
+        let pmlCmd = "printf \"%s\", SF::EvaluateCmdAtMATLABStackLevel(".s:current_frame_idx.",\"".varName."\")"."\r"
         call s:TermSendKeys(s:gdbjob, pmlCmd)
     else
         call TermDebugSendCommand("print ".varName)
     endif
 endfunction
-function! PrintMVar(varName)
-    if g:mstacklevel < 0
-        echo "Not at MATLAB stack frame."
-        return
-    endif
-    let pmlCmd = "printf \"%s\", SF::EvaluateCmdAtMATLABStackLevel(".g:mstacklevel.",\"".a:varName."\")"."\r"
-    call s:TermSendKeys(s:gdbjob, pmlCmd)
-endfunction
 
-func s:LoadSharedLibrariesOfComponent(componentName)
-    let s:cxxModulesInfo = split(system("mw ch properties -c ".a:componentName." -n cxx_module_data -q"),"\n")
-    let s:cxxModuleInfoPrefixLength = len(a:componentName.",cxx_module_info,")
-    let s:cxxModuleInfoSuffix = " :"
-    for cxxModuleInfo in s:cxxModulesInfo
-        let s:cxxModuleInfoSuffixIndex = stridx(cxxModuleInfo, s:cxxModuleInfoSuffix)
-        let s:cxxModulePath = cxxModuleInfo[s:cxxModuleInfoPrefixLength:s:cxxModuleInfoSuffixIndex]
-        let s:cxxModulePathSplit = split(s:cxxModulePath ,"/")
-        let s:cxxModuleFolderName = s:cxxModulePathSplit[len(s:cxxModulePathSplit)-1]
-        let s:cxxSharedLibraryName = s:getSharedLibraryNameFromCxxModule(s:cxxModulePath, s:cxxModuleFolderName)
-        call s:SendCommand("sb-auto-load-libs ".s:cxxSharedLibraryName)
+func! s:LoadSharedLibraryContainingFile(filePath)
+    if has_key(s:pending_breakpoint_files, a:filePath)
+	return
+    endif
+    let s:pending_breakpoint_files[a:filePath] = 1
 
-    endfor
-endfunc
-let g:statusmessage = []
-let g:gdbstatus='no-status'
-let g:sharedlibrary_loaded_onthefly = []
-let g:files_whose_sharedlibrary_loaded_onthefly = []
-let g:gdbpath = []
-func s:LoadSharedLibraryContainingFile(filePath)
-    "Here, we call 'ch' command twice for each unique filePath where
-    "breakpoint is pending
-    "TODO: Optimization: Hardcode all filePaths to cxxSharedLibraryNames in a
-    "text file using cron job and use it. 
-    if !(a:filePath =~ '^toolbox/' || a:filePath =~ '^src/')
-        return
+    let sbRootDir = mw#utils#GetRootDir()
+    let fullFilePath = sbRootDir.'/matlab/'.a:filePath
+    let fullFileDir = fnamemodify(fullFilePath, ':p:h')
+    let makeFilePath = findfile('Makefile', fullFileDir.';')
+    if makeFilePath == ''
+	return
     endif
-    if index(g:files_whose_sharedlibrary_loaded_onthefly, a:filePath) >= 0
-        return
-    endif
-    echo 'Sharedlibrary for pending breakpoint(s) in '.a:filePath.' : LOADING...WAIT.'
-    call add(g:files_whose_sharedlibrary_loaded_onthefly, a:filePath)
-    let s:sbRootDir = mw#utils#GetRootDir()
-    let s:fileComponent = trim(system("cd ".s:sbRootDir.";mw ch component matlab/".a:filePath." -q"))
-    if s:fileComponent == "UNOWNED" || empty(s:fileComponent)
-        echo g:statusmessage
-        return
-    endif
-    if index(g:sharedlibrary_loaded_onthefly, s:fileComponent) >= 0
-        echo g:statusmessage
-        return
-    endif
-    call add(g:sharedlibrary_loaded_onthefly, s:fileComponent)
-    call s:LoadSharedLibrariesOfComponent(s:fileComponent)
-    let g:statusmessage = "Loaded sharedlibraries on the fly: ".join(g:sharedlibrary_loaded_onthefly).".Breakpoint(s) might take few more seconds to turn red. "
-    echo g:statusmessage
-endfunc
-func s:collectHybridStackInfo()
-    let msgtoken1 = split(g:raw_c_stackText, "MathWorks::lxe::LxeBridge::CallFcn")
-    if len(msgtoken1) < 2
-        call s:createHybridStackHelper()
-        return
-    endif
-    let g:lminterleaveframeno = []
-    for msgtoken1Index in range(0,len(msgtoken1)-2)
-        let msgtoken2 = split(msgtoken1[msgtoken1Index],"level=")
-        let msgtoken3 = msgtoken2[len(msgtoken2)-1]
-        let msgtoken4 = split(msgtoken3,",")
-        call add(g:lminterleaveframeno, substitute(msgtoken4[0],"\"","","g"))
-    endfor
-    let g:minterleavelastframe=g:lminterleaveframeno[len(g:lminterleaveframeno)-1]
-    for frameno in g:lminterleaveframeno
-        let g:hstackCmd = "frame ".frameno.""."\r"
-        call s:TermSendKeys(s:gdbjob, g:hstackCmd)
-    endfor
-    if !empty(g:lminterleaveframeno)
-        let g:hstackCmd = "frame 0"."\r"
-        call s:TermSendKeys(s:gdbjob, g:hstackCmd)
-    endif
-endfunc
-func s:createHybridStackHelper()
-    let g:arg1Mstack = substitute(g:raw_m_stackText, "\"","@","g")
-    let g:arg2Cstack = substitute(g:raw_c_stackText, "\"","@","g")
-    let g:arg3interleavefcnnames = substitute(g:minterleavefcn, "\"","@","g")
-    let g:arg4interleaveframe = substitute(g:minterleaveframeno, "\"","@","g")
-    let g:raw_h_stackText = ''
-    let g:hstackCmd = "hstack \"".g:arg1Mstack."\" \"".g:arg2Cstack."\" \"".g:arg3interleavefcnnames."\" \"".g:arg4interleaveframe."\"\r"
-    call s:TermSendKeys(s:gdbjob, g:hstackCmd)
 
-endfunc
-func s:createHybridStack(msg)
-    if len(split(g:minterleavefcn," ")) >= len(g:lminterleaveframeno)
-        return
+    let makeFileTxt = readfile(makeFilePath)
+    let matches = matchlist(makeFileTxt, 'MODNAME\s*:=\s*\(\w\+\)')
+    if !empty(matches)
+	let modname = matches[1]
+    else
+	let modname = fnamemodify(makeFilePath, ':p:h:t')
     endif
-    let msgtoken1 = split(a:msg[stridx(a:msg,'#')+1:],' ')
-    let g:minterleaveframeno= g:minterleaveframeno.msgtoken1[0]." "
-    let msgtoken2 = split(a:msg[stridx(a:msg,'fcn_name='):],')')
-    let msgtoken3 = split(msgtoken2[0],' ')
-    let g:minterleavefcn= g:minterleavefcn.msgtoken3[1]." "
-    if msgtoken1[0] != g:minterleavelastframe
-        return
+    if !empty(matchstr(makeFileTxt, 'MOD_TYPE\s*:=\s*Mex'))
+	let dllname = modname.'.mex'
+    else
+	let dllname = 'libmw'.modname.'.so'
     endif
-    call s:createHybridStackHelper()
+    if has_key(s:pending_breakpoint_dlls, dllname)
+	return
+    endif
+    let s:pending_breakpoint_dlls[dllname] = 1
+    call TermDebugSendCommand('sb-auto-load-libs '.dllname)
 endfunc
+
 " Handle a message received from gdb on the GDB/MI interface.
-let s:pendingOutput = ''
-func s:CommOutput(chan, msg)
+func! s:CommOutput(chan, msg)
   let msgs = split(a:msg, "\r", v:true)
 
   " This rigamarole with pendingOutput is to account for truncated lines.
-  " With nvim, we occassionally get a single GDB message split across
-  " multiple calls to on_stdout. Therefore, keep pending messages around
-  " untile we get a "\r" which indicates a message is complete.
+  " We occassionally get a single GDB message split across multiple calls
+  " to on_stdout. Therefore, keep pending messages around untile we get a
+  " "\r" which indicates a message is complete.
   let msgs[0] = s:pendingOutput . msgs[0]
   let s:pendingOutput = msgs[-1]
-  let s:pendingBreakpointInfoOutputPatternString = "breakpoint     keep y   <PENDING>  "
-  for msg in msgs
-      "[:-2]
+  let pendingBreakpointInfoOutputPatternString = "breakpoint     keep y   <PENDING>  "
+
+  " Do not process the last line of the message (hence the 0:-2). This
+  " prevents us from processing incomplete lines.
+  for msg in msgs[0:-2]
     let msg = trim(msg)
     if msg == ''
-        continue
+      continue
     endif
+    " WISH: Just pass how we are calling HandleCursor instead of repeating
+    " regexps in HandleCursor
     if msg =~ '^\(\*stopped\|\*running\)'
-        "is called when breakpoint is hit
-        if g:stacktype != 'h'
-            call s:HandleCursor(msg)
-            call s:HandleFrameInfo(msg)
-        endif
-    elseif msg =~ '^=thread-selected'
-        "is called by 'frame'
-        if g:stacktype != 'h'
-            call s:HandleFrameInfo(msg)
-            "handleCursor handles two functionalities 
-            "(1) open file:line for stack frame 
-            "(2) update stack text
-            "we need only (1) here
-            call s:HandleCursor(msg, 0) 
-        end
-    elseif msg =~ '^\^done,frame='
-        "is called by -stack-info-frame
-        if g:stacktype != 'h'
-            call s:HandleFrameInfo(msg)
-        endif
+      call s:HandleCursor(msg)
+    elseif msg =~ '^\(=thread-selected\|\^done,frame=\)'
+      call s:HandleCFrameInfo(msg)
     elseif msg =~ '\^done,bkpt=' || msg =~ '=breakpoint-created,'
-        call s:HandleBreakpointCreated(msg)
+      call s:HandleBreakpointCreated(msg)
     elseif msg =~ '^\^done,BreakpointTable='
-	call s:HandleBreakpointInfo(msg)
+      call s:HandleBreakpointInfo(msg)
     elseif msg =~ '^=breakpoint-deleted,'
-	call s:HandleBreakpointDeleted(msg)
+      call s:HandleBreakpointDeleted(msg)
     elseif msg =~ '^=breakpoint-modified,'
-        call s:HandleBreakpointModified(msg)
+      call s:HandleBreakpointModified(msg)
     elseif msg =~ '^\^done,stack='
-        "is called by bt or -stack-list-frames 
-        let g:raw_c_stackText = msg
-        if g:stacktype != 'h'
-            echo "Loaded C stack"
-            call s:HandleStackInfo(msg)
-        endif
+      let s:current_stack_type = 'c'
+      call s:HandleCStackInfo(msg)
     elseif msg =~ '^=thread-group-added'
-        let g:gdbstatus='gdb-started'
-        let g:sharedlibrary_loaded_onthefly = []
-        let g:files_whose_sharedlibrary_loaded_onthefly = []
+      let g:gdbstatus='gdb-started'
+      let g:sharedlibrary_loaded_onthefly = []
+      let g:files_whose_sharedlibrary_loaded_onthefly = []
     elseif msg =~ '^=thread-group-started'
-        let g:gdbstatus='inferior-attached'
-        "does s:SendCommand work or needed here?
-        call s:SendCommand('info b')
-        call s:HandleProgramRun(msg)
+      let g:gdbstatus='inferior-attached'
+      "does s:SendCommand work or needed here?
+      call s:SendCommand('info b')
+      call s:HandleProgramRun(msg)
     elseif msg =~ '^=thread-group-exited' 
-        let g:gdbstatus='inferior-exited'
+      let g:gdbstatus='inferior-exited'
     elseif msg =~ '^\^done,value='
-        call s:HandleEvaluate(msg)
+      call s:HandleEvaluate(msg)
     elseif msg =~ '^\^error,msg='
-        call s:HandleError(msg)
-    elseif g:stacktype == 'h' && msg =~ 'MathWorks::lxe::LxeBridge::CallFcn' && msg =~ 'fcn_name=' 
-        call s:createHybridStack(msg)
-    elseif msg =~ '^\~"\^done,mstack'
-        let g:raw_m_stackText = substitute(msg[16:],'\\\\\','',"g")
-        if g:stacktype == 'm'
-            echo "Loaded MATLAB stack"
-            call s:HandleStackInfo(g:raw_m_stackText)
-        elseif g:stacktype == 'h'
-            call s:collectHybridStackInfo()
-        endif
-    elseif stridx(msg,s:pendingBreakpointInfoOutputPatternString) > 0
-        "breakpoint is pending, load sharedlibrary
-        "example command: info b $bpNum
-        "example msg    : 17     breakpoint     keep y   <PENDING> matlab/toolbox/stateflow/src/stateflow/cdr/cdr_eml_construct.cpp:682\n
-        if g:gdbstatus == 'inferior-attached'
-            let s:filePath = msg[stridx(msg, s:pendingBreakpointInfoOutputPatternString) + len(s:pendingBreakpointInfoOutputPatternString):stridx(msg, ":") - 1]       
-            call s:LoadSharedLibraryContainingFile(s:filePath)
-        endif
+      call s:HandleError(msg)
+    elseif msg =~ '--start--stack--'
+      let s:collecting_hybrid_stack = 1
+      let s:hybrid_stack = ""
+    elseif msg =~ '^\~"--end--stack--'
+      if s:collecting_hybrid_stack == 1
+	let s:current_stack_type = matchstr(msg, '--end--stack--\zs.')
+	let s:collecting_hybrid_stack = 0
+	call s:HandleMOrHybridStackInfo()
+      endif
+    elseif stridx(msg, pendingBreakpointInfoOutputPatternString) > 0
+      " breakpoint is pending, load sharedlibrary
+      " example command: info b $bpNum
+      " example msg    : 17     breakpoint     keep y   <PENDING> matlab/toolbox/stateflow/src/stateflow/cdr/cdr_eml_construct.cpp:682\n
+      if g:gdbstatus == 'inferior-attached'
+	let s:filePath = msg[stridx(msg, pendingBreakpointInfoOutputPatternString) + len(pendingBreakpointInfoOutputPatternString):stridx(msg, ":") - 1]       
+	call s:LoadSharedLibraryContainingFile(s:filePath)
+      endif
+    elseif s:collecting_hybrid_stack
+      if msg =~ '^\~"\s*#'
+	let s:hybrid_stack .= msg[2:-2]
+      endif
     endif
   endfor
 endfunc
 
-func s:GotoProgram()
+func! s:GotoProgram()
   if has('win32')
     if executable('powershell')
       call system(printf('powershell -Command "add-type -AssemblyName microsoft.VisualBasic;[Microsoft.VisualBasic.Interaction]::AppActivate(%d);"', s:pid))
@@ -1073,40 +983,25 @@ func s:GotoProgram()
     call win_gotoid(s:ptywin)
   endif
 endfunc
-func s:SwitchToCStackFromHybrid()
-    if g:stacktype != 'h'
-        return
-    endif
-    let curwinid = win_getid()
-    let winnum = bufwinid(s:stackbuf)
-    let g:stacktype = 'c'
-    let g:stackbufname = '-----------C Call Stack-----------' 
-    if winnum != -1
-        call win_gotoid(winnum)
-        exec "file ".g:stackbufname
-        call win_gotoid(curwinid)
-    endif
-endfunc
-func s:StepWrapper()
-  call s:SwitchToCStackFromHybrid()
+
+func! s:StepWrapper()
   call s:SendCommand('-exec-step')
 endfunc
 
-func s:OverWrapper()
-  call s:SwitchToCStackFromHybrid()
+func! s:OverWrapper()
   call s:SendCommand('-exec-next')
 endfunc
 
-func s:ContinueWrapper()
-  call s:SwitchToCStackFromHybrid()
+func! s:ContinueWrapper()
   if s:way == 'prompt'
     call s:SendCommand('continue')
   else
     call TermDebugSendCommand("continue")
   endif
 endfunc
+
 " Install commands in the current window to control the debugger.
-func s:InstallCommands()
+func! s:InstallCommands()
   call s:Debug("Installing commands")
   let save_cpo = &cpo
   set cpo&vim
@@ -1125,7 +1020,7 @@ func s:InstallCommands()
   command! -nargs=* GDB call TermDebugSendCommand(<q-args>)
   command! StackM call s:ShowMStack()
   command! StackH call s:ShowHybridStack()
-  command! Stack call s:ShowStack()
+  command! Stack call s:ShowCStack()
   command! -nargs=? LoadAndShowStack :call s:LoadAndShowStackImpl(<q-args>)
 
   " using -exec-continue results in CTRL-C in gdb window not working
@@ -1167,10 +1062,8 @@ function! s:ShowGdb()
   endif
 endfunc
 
-let s:winbar_winids = []
-
 " Install the window toolbar in the current window.
-func s:InstallWinbar()
+func! s:InstallWinbar()
   if has('menu') && &mouse != ''
     nnoremenu WinBar.Step   :Step<CR>
     nnoremenu WinBar.Next   :Over<CR>
@@ -1182,7 +1075,7 @@ func s:InstallWinbar()
   endif
 endfunc
 
-func s:ClearBreakpointInfo()
+func! s:ClearBreakpointInfo()
   for [id, entries] in items(s:breakpoints)
     for subid in keys(entries)
       call s:UnplaceBreakpointSign(id, subid)
@@ -1197,7 +1090,7 @@ func s:ClearBreakpointInfo()
 endfunc
 
 " Delete installed debugger commands in the current window.
-func s:DeleteCommands()
+func! s:DeleteCommands()
   delcommand Break
   delcommand Clear
   delcommand Step
@@ -1247,7 +1140,7 @@ func s:DeleteCommands()
   sign undefine debugPC
 endfunc
 
-func s:LocationCmd(at, cmd)
+func! s:LocationCmd(at, cmd)
   " Setting a breakpoint may not work while the program is running.
   " Interrupt to make it work.
   let do_continue = 0
@@ -1276,19 +1169,19 @@ func s:LocationCmd(at, cmd)
 endfunc
 
 " :Break - Set a breakpoint at the cursor position.
-func s:SetBreakpoint(at)
+func! s:SetBreakpoint(at)
   " Use break instead of -break-insert. -break-insert does not seem to
   " honor "set breakpoint pending on" option.
   call s:LocationCmd(a:at, 'break')
   call s:SendCommand('info b $bpnum') "to load sharedlibrary of breakpoint location if pending
 endfunc
 
-func s:UnplaceBreakpointSign(id, subid)
+func! s:UnplaceBreakpointSign(id, subid)
   exe 'sign unplace ' . s:Breakpoint2SignNumber(a:id, a:subid).' group=TermDebugBreakpoints'
 endfunc
 
 " :Clear - Delete a breakpoint at the cursor position.
-func s:ClearBreakpoint()
+func! s:ClearBreakpoint()
   let info = sign_getplaced(bufname(), {'group': 'TermDebugBreakpoints', 'lnum': line('.')})
   if empty(info[0]['signs'])
     return
@@ -1303,7 +1196,7 @@ func s:ClearBreakpoint()
   endfor
 endfunc
 
-func s:ToggleBreakpoint()
+func! s:ToggleBreakpoint()
   if s:gdb_started == 0
     call s:Debug('setting pending breakpoint')
     call s:TogglePendingBreakpoint()
@@ -1322,40 +1215,41 @@ endfunc
 
 command! ToggleBreakpoint call s:ToggleBreakpoint()
 
-func s:Until(at)
+func! s:Until(at)
   call s:LocationCmd(a:at, 'until')
 endfunc
 
-func s:Jump(at)
+func! s:Jump(at)
   call s:LocationCmd(a:at, 'tbreak')
   call s:LocationCmd(a:at, 'jump')
 endfunc
 
-func s:IssueStackListCmd(winid)
-  call s:Debug('-stack-list-frames 0 200')
-  call s:SendCommand('-stack-list-frames 0 200')
-  call s:SendCommand('-stack-info-frame')
-endfunc
-
 function! s:LoadAndShowStackImpl(level)
-    let s:ulevel = input('Stack depth to load 1/2/3/.../all :')
-    echo ".  Loading symbols required for current stack. It might take ~20s. Wait for done message."
-    call s:SendCommand('sb-load-stack '.s:ulevel)
-    call s:ShowStack()
+    let ulevel = input('Stack depth to load 1/2/3/.../all :')
+    echo "\nLoading symbols for current stack. It might take a while. Wait for stack window to update."
+    call TermDebugSendCommand('sb-load-stack '.ulevel)
+    call s:ShowCStack()
 endfunction
 
-
-func s:ShowStackPre()
-  let curwinid = win_getid()
-  if g:stacktype == 'm'
-      let g:stackbufname = '-----------MATLAB Call Stack-----------' 
-  elseif g:stacktype == 'h'
-      let g:stackbufname = '-----------Hybrid(MATLAB-C) Call Stack-----------' 
+" s:UpdateStackTypeStatusLine:  {{{
+" Description: updates the statusline text of the stack window to indicate
+" what is being shown. 
+function! s:UpdateStackTypeStatusLine(winnum)
+  if s:current_stack_type == 'm'
+    let statusline = 'Stack [MATLAB]'
+  elseif s:current_stack_type == 'h'
+    let statusline = 'Stack [C + MATLAB (hybrid)]'
   else
-      let g:stackbufname = '-----------C Call Stack-----------' 
+    let statusline = 'Stack [C]'
   endif
+  call setwinvar(a:winnum, '&statusline', statusline)
+endfunction " }}}
+
+func! s:ShowStackPre()
+  let curwinid = win_getid()
+  let stackbufname = "_GDB_Stack_Window_"
   if s:stackbuf == -1
-      let s:stackbuf = bufnr(g:stackbufname, 1) 
+      let s:stackbuf = bufnr(stackbufname, 1) 
       call setbufvar(s:stackbuf, '&swapfile', 0)
       call setbufvar(s:stackbuf, '&buflisted', 0)
       call setbufvar(s:stackbuf, '&buftype', 'nofile')
@@ -1363,9 +1257,10 @@ func s:ShowStackPre()
   endif
 
   let winnum = bufwinid(s:stackbuf)
+  
   if winnum != -1
     call win_gotoid(winnum)
-    exec "file ".g:stackbufname
+    exec "silent! file ".stackbufname
   else
     if win_gotoid(s:gdbwin)
       exec 'vert sbuffer '.s:stackbuf
@@ -1374,286 +1269,260 @@ func s:ShowStackPre()
     endif
   endif
   let winnum = bufwinid(s:stackbuf)
+  call s:UpdateStackTypeStatusLine(winnum)
   setlocal nowrap
-  nmap <buffer> <silent> <CR>           :call <SID>GotoSelectedFrame()<CR>
-  nmap <buffer> <silent> <2-LeftMouse>  :call <SID>GotoSelectedFrame()<CR>
-  "nmap <buffer> <silent> <tab>          :call <SID>ExpandStack()<CR>
+  nmap <buffer> <silent> <CR>           :call <SID>GotoSelectedFrame(line('.'))<CR>
+  nmap <buffer> <silent> <2-LeftMouse>  :call <SID>GotoSelectedFrame(line('.'))<CR>
   return winnum
 endfunc
 
-func! s:Wait(mil)
-    let timetowait = a:mil . " m"
-    exe 'sleep '.timetowait
-endfunction 
+" s:IssueGenericStackListCmd:  {{{
+" Description: 
+function! s:IssueGenericStackListCmd(gdbcmd, stacktype)
+  call s:SendCommand('echo --start--stack--'.a:stacktype)
+  call s:SendCommand(a:gdbcmd)
+  call s:SendCommand('echo --end--stack--'.a:stacktype)
+endfunction " }}}
 
-let g:mstacklevel = -1
-let g:cstacklevel = -1
-let g:stacktype = ''
-let g:stackText = ''
-let g:raw_c_stackText = ''
-let g:raw_m_stackText = ''
-let g:raw_h_stackText = ''
-let g:minterleaveframeno=""
-let g:minterleavefcn=""
-let g:minterleavelastframe=''
-func s:ShowHybridStack()
-  let g:stacktype = 'h'
-  let g:mstacklevel = -1
-  let g:cstacklevel = 0
-  let g:minterleaveframeno=""
-  let g:minterleavefcn=""
-  let g:minterleavelastframe=''
-  echo "Loading hybrid stack. It might take ~20s. Wait for done message."
-  call s:SendCommand('sb-load-stack 200')
+" s:IssueHybridStackListCmd:  {{{
+" Description: 
+function! s:IssueHybridStackListCmd()
+  echomsg "Loading hybrid stack. It might take a while. Wait for stack window to update."
+  call TermDebugSendCommand('sb-load-stack 200')
+
+  call s:Debug('issuing hybrid stack list cmd')
+  call s:IssueGenericStackListCmd('hybrid_stack', 'h')
+endfunction " }}}
+
+func! s:ShowHybridStack()
+  if !s:stopped
+    echoerr "Interrupt GDB to show stack"
+    return
+  endif
+  call s:IssueHybridStackListCmd()
+  " Refresh the stack to show the current C++ frame.
+  call s:SendCommand("-stack-info-frame")
+endfunc
+
+" s:IssueMStackListCmd:  {{{
+" Description: 
+function! s:IssueMStackListCmd()
+  call s:IssueGenericStackListCmd('mstack', 'm')
+endfunction " }}}
+
+func! s:ShowMStack()
+  if !s:stopped
+    echoerr "Interrupt GDB to show stack"
+    return
+  endif
+  call s:ShowStackPre()
+  call s:IssueMStackListCmd()
+endfunc
+
+func! s:IssueCStackListCmd()
+  " WISH: Convert this to the generic form of handling stacks as well.
   call s:SendCommand('-stack-list-frames 0 200')
-  call s:SendCommand('mframe')
-endfunc
-func s:ShowMStack()
-  let g:stacktype = 'm'
-  let g:mstacklevel = 0
-  let curwinid = win_getid()
-  let winnum = s:ShowStackPre()
-  call s:SendCommand('mframe')
-  call win_gotoid(curwinid)
-endfunc
-func s:ShowStack()
-  let g:stacktype = 'c'
-  let curwinid = win_getid()
-  let winnum = s:ShowStackPre()
-  call s:Debug('setting up stack in '.winnum)
-  call s:IssueStackListCmd(winnum)
-  call win_gotoid(curwinid)
 endfunc
 
-func TermDebugScriptVar(name)
+func! s:ShowCStack()
+  if !s:stopped
+    echoerr "Interrupt GDB to show stack"
+    return
+  endif
+  call s:ShowStackPre()
+  call s:IssueCStackListCmd()
+  call s:SendCommand('-stack-info-frame')
+endfunc
+
+func! TermDebugGetScriptVar(name)
   return s:{a:name}
 endfunc
 
-function! DownStackImpl()
-    if g:stacktype == 'c'
-        call s:SendCommand('down')
-    elseif g:stacktype == 'm'
-        let lineTextM = split(g:stackText, "\n")
-        if g:mstacklevel < 1
-            return
-        endif
-        let g:mstacklevel = g:mstacklevel - 1
-        call s:GotoSelectedFrameLineText(lineTextM[g:mstacklevel])
-        let s:mFrameInfo = s:getMFrameInfoFromText(lineTextM[g:mstacklevel])
-        if empty(s:mFrameInfo)
-            return
-        end
-        call s:HandleFrameInfo(s:mFrameInfo)
-    elseif g:stacktype == 'h'
-        echo "stack up/down not supported in hybrid stack"
-    endif
-endfunc
-function! UpStackImpl()
-    if g:stacktype == 'c'
-        call s:SendCommand('up')
-    elseif g:stacktype == 'm'
-        let lineTextM = split(g:stackText, "\n")
-        if g:mstacklevel + 1 >= len(lineTextM)
-            return
-        endif
-        let g:mstacklevel = g:mstacklevel + 1
-        call s:GotoSelectedFrameLineText(lineTextM[g:mstacklevel])
-        let s:mFrameInfo = s:getMFrameInfoFromText(lineTextM[g:mstacklevel])
-        if empty(s:mFrameInfo)
-            return
-        end
-        call s:HandleFrameInfo(s:mFrameInfo)
-    elseif g:stacktype == 'h'
-        echo "stack up/down not supported in hybrid stack"
-    endif
-endfunc
-func s:GotoSelectedFrame()
-  let s:lineText = getline('.')
-  call s:GotoSelectedFrameLineText(s:lineText)
-endfunc
-func s:getMFrameInfoFromText(lineText)
-    let mLineTextInfo = split(a:lineText)
-    let s:mFrameInfo = []
-    if len(mLineTextInfo) != 4
-        return s:mFrameInfo
-    end
-    let fileNameLineInfo = split(mLineTextInfo[3],':')
-    if len(fileNameLineInfo) != 2
-         let fileNameLineInfo = ['', '0']
-    end
-    let funcName = substitute(mLineTextInfo[1],'(...)','',"")
-    let s:mFrameInfo = '=thread-selected,id="20",frame={level="'.mLineTextInfo[0][1:].'",addr="0x00",func="'.funcName.'",args=[],file="file",fullname="'.fileNameLineInfo[0].'",line="'.fileNameLineInfo[1].'",arch=""}'
-    return s:mFrameInfo
-endfunc
-func s:getHybridFrameInfoFromText(lineText)
-    let hLineTextInfo = split(a:lineText)
-    let s:hFrameInfo = []
-    if len(hLineTextInfo) != 5
-        return s:hFrameInfo
-    end
-    let fileNameLineInfo = split(hLineTextInfo[3],':')
-    if len(fileNameLineInfo) != 2
-         let fileNameLineInfo = ['', '0']
-    end
-    let funcName = substitute(hLineTextInfo[1],'(...)','',"")
-    let s:hFrameInfo = '=thread-selected,id="20",frame={level="'.hLineTextInfo[0][1:].'",addr="0x00",func="'.funcName.'",args=[],file="file",fullname="'.fileNameLineInfo[0].'",line="'.fileNameLineInfo[1].'",arch="",langlevel="'.hLineTextInfo[4].'"}'
-    return s:hFrameInfo
+func! TermDebugSetScriptVar(name, val)
+  let s:{a:name} = a:val
 endfunc
 
-func s:GotoSelectedFrameLineText(lineText)
-  let level = matchstr(a:lineText, '\d\+')
-  if level == ''
-      return
-  end
-  if g:stacktype == 'h'
-    let s:hFrameInfo = s:getHybridFrameInfoFromText(a:lineText)
-    if empty(s:hFrameInfo)
-        return
-    end
-    let hLineTextInfo = split(a:lineText)
-    call s:HandleCursor(s:hFrameInfo, 0)
-    if hLineTextInfo[4][0:0] == 'c'
-        let g:cstacklevel = hLineTextInfo[4][2:]
-        let g:mstacklevel = -1
-        call TermDebugSendCommand("frame ".g:cstacklevel)
-    else
-        let g:mstacklevel = hLineTextInfo[4][2:]
-        let g:cstacklevel = -1
-    end
-  elseif  g:stacktype == 'm'
-    let s:mFrameInfo = s:getMFrameInfoFromText(a:lineText)
-    if empty(s:mFrameInfo)
-        return
-    end
-    let mLineTextInfo = split(a:lineText)
-    call s:HandleCursor(s:mFrameInfo, 0)
-    let g:cstacklevel = -1
-    let g:mstacklevel = mLineTextInfo[0][1:]
+" s:TravelStackImpl: travel up/down the stack {{{
+" Description: 
+function! s:TravelStackImpl(gdbcmd, delta)
+  let winnum = bufwinid(s:stackbuf)
+  if winnum == -1 
+    call s:SendCommand(a:gdbcmd)
   else
-    " Use frame instead of -stack-select-frame so GDB prints the
-    " =thread-selected message on the MI console which triggers
-    " s:HandleCursor
-    let g:mstacklevel = -1
-    call TermDebugSendCommand('frame '.level)
+    call win_gotoid(winnum)
+    let lnum = search('^>', 'wn')
+    let nextline = lnum + a:delta
+    if nextline < 1 || nextline > line('$')
+      return
+    endif
+    call s:GotoSelectedFrame(nextline)
   endif
+endfunction " }}}
+
+function! TermDebugDownStack()
+  call s:TravelStackImpl('down', -1)
 endfunc
 
-func s:ExpandStack()
-  if getline('$') !~ 'next frame'
+function! TermDebugUpStack()
+  call s:TravelStackImpl('up', 1)
+endfunc
+
+func! s:GotoSelectedFrame(bufline)
+  let lineText = getline(a:bufline)
+  let matches = matchlist(lineText, '#\(\d\+\)\s\+\(\S\+\) at \(\S\+\):\(\d\+\) (\([CM]\))')
+  if len(matches) == 0
     return
   endif
 
-  let nextframe = matchstr(getline('$'), 'next frame = \zs\d\+\ze') + 0
-  call s:SendCommand('-stack-list-frames '.nextframe.' '.(nextframe + winheight(0)-2))
+  let framenum = matches[1]
+  let fcnname = matches[2]
+  let filename = matches[3]
+  let linenum = matches[4]
+  let s:current_frame_type = matches[5]
+
+  " We need to remember this for CTRL-P (see PrintHelper)
+  let s:current_frame_idx = framenum
+  exec 'keeppatterns silent! % s/^>/ /e'
+  exec 'keeppatterns silent! '.a:bufline.' s/^ />/e'
+  call s:OpenCursorPosition(filename, linenum)
+  if s:current_frame_type == 'c'
+    " For C frames, we also need to communicate the frame level to GDB so
+    " CTRL-P etc. works.
+    call TermDebugSendCommand("frame ".framenum)
+  endif
 endfunc
 
-func s:GetMiValue(txt, varname)
+func! s:GetMiValue(txt, varname)
   return matchstr(a:txt, a:varname.'="\zs[^"]*\ze"')
 endfunc
 
-func s:UpdateFramePtr(winnum, level)
-  call win_gotoid(a:winnum)
-  exec 'keeppatterns silent! % s/^>/ /e'
-  exec 'keeppatterns silent! % s/^ #\('.a:level.'\) />#\1 /e'
-endfunction
-
-func s:HandleFrameInfo(msg)
-  if a:msg !~ 'level='
-    return
-  endif
-
+func! s:UpdateFramePtr(level)
   let winnum = bufwinid(s:stackbuf)
   if winnum == -1
     return
   endif
 
-  let level = s:GetMiValue(a:msg, 'level') + 0
   let curwin = win_getid()
-  keepalt call s:UpdateFramePtr(winnum, level)
+  call win_gotoid(winnum)
+  exec 'keeppatterns silent! % s/^>/ /e'
+
+  let marker = '('.s:current_frame_type.')'
+  exec 'keeppatterns silent! % s/^ \ze#'.a:level.' .*'.marker.'/>/e'
   call win_gotoid(curwin)
+endfunction
+
+
+func! s:HandleCFrameInfo(msg)
+  if a:msg !~ 'level='
+    return
+  endif
+  let level = s:GetMiValue(a:msg, 'level') + 0
+  let s:current_frame_type = 'c'
+  let s:current_frame_idx = level
+
+  keepalt call s:UpdateFramePtr(level)
+
+  let fname = s:GetFullname(a:msg)
+  if fname != ''
+    let lnum = s:GetMiValue(a:msg, 'line') + 0
+    keepalt call s:OpenCursorPosition(fname, lnum)
+  endif
 endfunc
 
-func s:UpdateStackIfVisible()
+func! s:UpdateStackIfVisible()
   let winid = bufwinid(s:stackbuf)
   if winid == -1
     return
   endif
-  call s:IssueStackListCmd(winid)
+  if s:current_stack_type =='c'
+    call s:IssueCStackListCmd()
+  elseif s:current_stack_type == 'h'
+    call s:IssueHybridStackListCmd()
+  elseif s:current_stack_type == 'm'
+    call s:IssueMStackListCmd()
+  endif
 endfunc
 
-func s:UpdateStackWindow(msg)
-  let startpos = stridx(a:msg,'frame')
-  call deletebufline(s:stackbuf, line('$'))
+func! s:ProcessCStackInfo(msg)
+  let lines = []
 
   let lastknown = v:false
-  let numnewframes = 0
-  let g:stackText = ""
+  let startpos = 0
   while 1
     let frame = matchstr(a:msg, 'frame={.\{-\}},', startpos)
     if frame == ''
       break
     endif
-    let numnewframes += 1
 
     let level = s:GetMiValue(frame, 'level') + 0
     let langlevel = s:GetMiValue(frame,'langlevel')
-    if level == 0
-      " This means that we got a fresh stack.
-      call deletebufline(s:stackbuf, 1, line('$'))
-    endif
-    let fcnname = s:GetMiValue(frame, 'func')
+    let fcnname = substitute(s:GetMiValue(frame, 'func')," ","","g")
+    let fcnname = fcnname[0:min([50,len(fcnname)])]
     let fname = s:GetFullname(frame)
     let lnum = s:GetMiValue(frame, 'line') + 0
 
     if fname == '' || fcnname == '' || lnum <= 0
         if lastknown == v:true
-            call append(line('$'), ' ... ')
+            call add(lines, ' ... ')
         endif
         let lastknown = v:false
     else
-        if g:stacktype == 'h'
-            let currentFrameStackText = printf(' #%-3d %s at %s:%d %s' , level, fcnname[0:min([50,len(fcnname)])], fname, lnum, langlevel)
-        else
-            let currentFrameStackText = printf(' #%-3d %s at %s:%d' , level, fcnname[0:min([50,len(fcnname)])], fname, lnum)
-        end
-        let g:stackText = g:stackText.currentFrameStackText."\n"
-        call append(line('$'), currentFrameStackText)
+	let currentFrameStackText = printf(' #%-3d %s at %s:%d (C)' , level, fcnname, fname, lnum)
+	call add(lines, currentFrameStackText)
         let lastknown = v:true
     endif
 
     let startpos += strlen(frame)
   endwhile
 
-  if getline(1) == ''
-    call deletebufline(s:stackbuf, 1)
-  endif
+  return lines
 endfunc
 
-func s:HandleStackInfo(msg)
-  let winnum = bufwinid(s:stackbuf)
-  if winnum == -1
-    return
-  endif
+" s:UpdateStackWindow: updates stack window with lines {{{
+" Description: 
+function! s:UpdateStackWindow(lines)
   let curwin = win_getid()
+  let winnum = s:ShowStackPre()
+  
   call win_gotoid(winnum)
-  keepalt call s:UpdateStackWindow(a:msg)
+  call deletebufline(s:stackbuf, 1, line('$'))
+  call appendbufline(s:stackbuf, 0, a:lines)
+  call cursor(1, 1)
+
   call win_gotoid(curwin)
+endfunction " }}}
+
+func! s:HandleMOrHybridStackInfo()
+  let lines = split(s:hybrid_stack, '\\n')
+  keepalt call s:UpdateStackWindow(lines)
+
+  if s:current_stack_type == 'm'
+    " for C or hybrid stacks, we would have issued a -stack-info-frame
+    " command which refreshes the frame ptr etc. For MATLAB, we just use
+    " the actual stack
+    call s:GotoSelectedFrame(1)
+  endif
 endfunc
 
-func s:Run(args)
+func! s:HandleCStackInfo(msg)
+  let lines = s:ProcessCStackInfo(a:msg)
+  keepalt call s:UpdateStackWindow(lines)
+endfunc
+
+func! s:Run(args)
   if a:args != ''
     call s:SendCommand('-exec-arguments ' . a:args)
   endif
   call s:SendCommand('-exec-run')
 endfunc
 
-func s:SendEval(expr)
+func! s:SendEval(expr)
   call s:SendCommand('-data-evaluate-expression "' . a:expr . '"')
   let s:evalexpr = a:expr
 endfunc
 
 " :Evaluate - evaluate what is under the cursor
-func s:Evaluate(range, arg)
+func! s:Evaluate(range, arg)
   if a:arg != ''
     let expr = a:arg
   elseif a:range == 2
@@ -1671,11 +1540,8 @@ func s:Evaluate(range, arg)
   call s:SendEval(expr)
 endfunc
 
-let s:ignoreEvalError = 0
-let s:evalFromBalloonExpr = 0
-
 " Handle the result of data-evaluate-expression
-func s:HandleEvaluate(msg)
+func! s:HandleEvaluate(msg)
   let value = substitute(a:msg, '.*value="\(.*\)"', '\1', '')
   let value = substitute(value, '\\"', '"', 'g')
   if s:evalFromBalloonExpr
@@ -1700,7 +1566,7 @@ endfunc
 
 " Show a balloon with information of the variable under the mouse pointer,
 " if there is any.
-func TermDebugBalloonExpr()
+func! TermDebugBalloonExpr()
   if v:beval_winid != s:sourcewin
     return ''
   endif
@@ -1717,7 +1583,7 @@ func TermDebugBalloonExpr()
 endfunc
 
 " Handle an error.
-func s:HandleError(msg)
+func! s:HandleError(msg)
   if s:ignoreEvalError
     " Result of s:SendEval() failed, ignore.
     let s:ignoreEvalError = 0
@@ -1727,7 +1593,7 @@ func s:HandleError(msg)
   echoerr substitute(a:msg, '.*msg="\(.*\)"', '\1', '')
 endfunc
 
-func s:GotoSourcewinOrCreateIt()
+func! s:GotoSourcewinOrCreateIt()
   let bn = -1
   " Iterating backwards because usually source windows occupy the
   " "bottom" part of a screen with supporting windows elsewhere
@@ -1748,58 +1614,63 @@ func s:GotoSourcewinOrCreateIt()
   endif
 endfunc
 
-" Handle stopping and running message from gdb.
-" Will update the sign that shows the current position.
-func s:HandleCursor(msg, updateStackText=1)
+" s:OpenCursorPosition: sets the position of the program counter {{{
+" Description: 
+function! s:OpenCursorPosition(fname, lnum)
+  if !filereadable(a:fname)
+    return
+  endif
+  call s:GotoSourcewinOrCreateIt()
+  if expand('%:p') != fnamemodify(a:fname, ':p')
+    exec 'drop '.fnameescape(a:fname)
+  endif
+  exe a:lnum
+  exe 'sign unplace ' . s:pc_id
+  exe 'sign place ' . s:pc_id . ' line=' . a:lnum . ' name=debugPC priority=110 file=' . a:fname
+  if !exists('b:save_signcolumn')
+    let b:save_signcolumn = &signcolumn
+    call add(s:signcolumn_buflist, bufnr())
+  endif
+  setlocal signcolumn=yes
+  redraw
+endfunction " }}}
 
-  if a:msg =~ '^\*stopped'
+" Handle stopping and running message from gdb. Updates the s:stopped
+" variable which tracks whether GDB needs to be interrupted for issuing
+" commands
+func! s:HandleCursor(msg)
+  " Issuing the hybrid_stack command (as part of UpdateStackIfVisible) when
+  " we are stopped (due to a SIGINT) generates a SIGABORT which result in
+  " GDB once again printing the *stopped message. This results in
+  " HandleCursor getting called "recursively" which once again results in
+  " hybrid_stack being issued. Hence we ignore *stopped messages received
+  " when we are already stopped!
+  if s:stopped == 0 && a:msg =~ '^\*stopped'
     let s:stopped = 1
+    call foreground()
+
+    " Should we change to just a plain C stack if we get here due to a
+    " SIGINT?
+    " let stoppedReason = s:GetMiValue(a:msg, "reason")
+    " if stoppedReason != "breakpoint-hit"
+    "   " If we get here due to a signal (like CTRL-C being pressed), we
+    "   " might not be in the main MATLAB thread. At the time, issuing the
+    "   " hybrid_stack command creates a SIGABORT signal to get generated
+    "   " which in turn calls us again!
+    "   let s:current_stack_type = 'c'
+    " endif
+
+    call s:UpdateStackIfVisible()
+    call s:SendCommand('-stack-info-frame')
+
   elseif a:msg =~ '^\*running,thread-id="all"'
     let s:stopped = 0
-  endif
-
-  if a:msg =~ 'fullname='
-    let fname = s:GetFullname(a:msg)
-  else
-    let fname = ''
-  endif
-  if a:msg =~ '^\(\*stopped\|=thread-selected\)' && filereadable(fname)
-    let lnum = substitute(a:msg, '.*line="\([^"]*\)".*', '\1', '')
-    if lnum =~ '^[0-9]*$'
-      call s:GotoSourcewinOrCreateIt()
-      if expand('%:p') != fnamemodify(fname, ':p')
-	exec 'drop '.fnameescape(fname)
-      endif
-      exe lnum
-      exe 'sign unplace ' . s:pc_id
-      exe 'sign place ' . s:pc_id . ' line=' . lnum . ' name=debugPC priority=110 file=' . fname
-      if !exists('b:save_signcolumn')
-	let b:save_signcolumn = &signcolumn
-	call add(s:signcolumn_buflist, bufnr())
-      endif
-      setlocal signcolumn=yes
-
-      call foreground()
-      if g:stacktype =='c' && a:updateStackText
-         call s:UpdateStackIfVisible()
-         redraw
-     elseif g:stacktype == 'h' &&  a:updateStackText
-         call s:ShowHybridStack()
-     elseif g:stacktype == 'm' &&  a:updateStackText
-         call s:ShowMStack()
-     endif
-    endif
-  elseif !s:stopped || fname != ''
     exe 'sign unplace ' . s:pc_id
+    call s:UpdateFramePtr(-1)
   endif
-
-  let wid = win_getid(winnr())
-  call win_gotoid(wid)
 endfunc
 
-let s:breakpoint_signs = {}
-
-func s:DefineBreakpointSign(id, subid, pending)
+func! s:DefineBreakpointSign(id, subid, pending)
   let nr = printf('%d.%d', a:id, a:subid)
 
   let texthl = 'debugBreakpoint'
@@ -1815,11 +1686,11 @@ func s:DefineBreakpointSign(id, subid, pending)
   return signName
 endfunc
 
-func s:SplitMsg(s)
+func! s:SplitMsg(s)
   return split(a:s, '{.\{-}}\zs')
 endfunction
 
-func s:GetPendingFileName(msg)
+func! s:GetPendingFileName(msg)
   if a:msg !~ 'pending='
     return ["", -1]
   endif
@@ -1847,12 +1718,12 @@ func s:GetPendingFileName(msg)
   return [name, lnum]
 endfunction
 
-func s:EndsWith(larger, smaller)
+func! s:EndsWith(larger, smaller)
   return strlen(a:larger) > strlen(a:smaller) && 
 	\ strpart(a:larger, strlen(a:larger) - strlen(a:smaller)) == a:smaller
 endfunction
 
-func s:TryToResolveName(name)
+func! s:TryToResolveName(name)
   if bufloaded(a:name)
     return a:name
   endif
@@ -1868,7 +1739,7 @@ endfunction
 
 " Handle setting a breakpoint
 " Will update the sign that shows the breakpoint
-func s:HandleBreakpointCreated(msg)
+func! s:HandleBreakpointCreated(msg)
   if a:msg =~ 'type="hw watch"'
     " a watch does not have a file name
     return
@@ -1924,7 +1795,7 @@ func s:HandleBreakpointCreated(msg)
   endfor
 endfunc
 
-func s:PlaceSign(id, subid, entry)
+func! s:PlaceSign(id, subid, entry)
   let nr = printf('%d.%d', a:id, a:subid)
   let signId = s:Breakpoint2SignNumber(a:id, a:subid)
   call s:Debug('placing sign in '.a:entry['fname'].' at line '.a:entry['lnum'])
@@ -1937,7 +1808,7 @@ func s:PlaceSign(id, subid, entry)
 endfunc
 
 sign define debugBreakpointPending text=? texthl=debugBreakpointPending
-func s:TogglePendingBreakpoint()
+func! s:TogglePendingBreakpoint()
   let info = sign_getplaced(bufname(), {'group': 'TermDebugPendingBreakpoints', 'lnum': line('.')})
   if empty(info[0]['signs'])
     call sign_place(0, 
@@ -1949,7 +1820,7 @@ func s:TogglePendingBreakpoint()
   endif
 endfunc
 
-func s:GetSignLocations(groupName)
+func! s:GetSignLocations(groupName)
   let bps = []
   for bufnr in range(1, bufnr('$'))
     if !buflisted(bufnr) || empty(bufname(bufnr))
@@ -1968,7 +1839,7 @@ func s:GetSignLocations(groupName)
   return bps
 endfunc
 
-func s:DeleteBreakpoint(id)
+func! s:DeleteBreakpoint(id)
   if has_key(s:breakpoints, a:id)
 
     for [subid, entry] in items(s:breakpoints[a:id])
@@ -1983,7 +1854,7 @@ endfunc
 
 " Handle deleting a breakpoint
 " Will remove the sign that shows the breakpoint
-func s:HandleBreakpointDeleted(msg)
+func! s:HandleBreakpointDeleted(msg)
   let id = substitute(a:msg, '.*id="\([0-9]*\)\".*', '\1', '') + 0
   if empty(id)
     return
@@ -1993,18 +1864,18 @@ endfunc
 
 " Handle a breakpoint modification
 " Will update the sign that shows the breakpoint
-func s:HandleBreakpointModified(msg)
+func! s:HandleBreakpointModified(msg)
   let id = substitute(a:msg, '.*number="\([0-9]*\)\".*', '\1', '') + 0
   call s:DeleteBreakpoint(id)
   call s:HandleBreakpointCreated(a:msg)
 endfunc
 
-func s:RestoreBreakpoints()
+func! s:RestoreBreakpoints()
   call s:Debug('sending break-list')
   call s:SendCommand('-break-list')
 endfunc
 
-func s:HandleBreakpointInfo(msg)
+func! s:HandleBreakpointInfo(msg)
   call s:Debug("Getting to HandleBreakpointInfo ".a:msg)
   let startpos = 0
 
@@ -2034,7 +1905,7 @@ endfunc
 
 " Handle the debugged program starting to run.
 " Will store the process ID in s:pid
-func s:HandleProgramRun(msg)
+func! s:HandleProgramRun(msg)
   let nr = substitute(a:msg, '.*pid="\([0-9]*\)\".*', '\1', '') + 0
   if nr == 0
     return
@@ -2044,7 +1915,7 @@ func s:HandleProgramRun(msg)
 endfunc
 
 " Handle a BufRead autocommand event: place any signs.
-func s:BufRead()
+func! s:BufRead()
   let fname = expand('<afile>:p')
   for [id, entries] in items(s:breakpoints)
     for [subid, entry] in items(entries)
@@ -2056,7 +1927,7 @@ func s:BufRead()
 endfunc
 
 " Handle a BufUnloaded autocommand event: unplace any signs.
-func s:BufUnloaded()
+func! s:BufUnloaded()
   let fname = expand('<afile>:p')
   for [id, entries] in items(s:breakpoints)
     for [subid, entry] in items(entries)
@@ -2066,6 +1937,12 @@ func s:BufUnloaded()
     endfor
   endfor
 endfunc
+
+" TermDebugSendCommandToComm: sends the command to the gdb communication window {{{
+" Description: 
+function! TermDebugSendCommandToComm(cmd)
+  call s:SendCommand(a:cmd)
+endfunction " }}}
 
 let &cpo = s:keepcpo
 unlet s:keepcpo

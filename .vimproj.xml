@@ -1,0 +1,5 @@
+<solution>
+    <project name="app">
+        <include path="." pattern="*.vim *.py *.lua" />
+    </project>
+</solution>

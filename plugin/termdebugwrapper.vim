@@ -32,17 +32,19 @@ function! TermDebugGdbCmd(pty)
     let mw_anchor_loc = findfile('mw_anchor', '.;')
     if mw_anchor_loc != ''
         let sbroot = fnamemodify(mw_anchor_loc, ':h')
-        if empty(g:gdbpath)
+        if exists('g:sbgdbpath')
+            "using user specified gdb
+            "using vim-tools/plugin/.gdbinit
+            return split('sb -debug-exe '.g:sbgdbpath.' -s '.sbroot.' -debug -no-debug-backing-stores -gdb-switches -x -gdb-switches '.s:scriptDir.'/.gdbinit -gdb-switches -quiet', ' ')
+        else
             "using sbtools default gdb (gdb-121 as of 7/5/2022)
             "using vim-tools/plugin/.gdbinit
             return split('sb -s '.sbroot.' -debug -no-debug-backing-stores -gdb-switches -x -gdb-switches '.s:scriptDir.'/.gdbinit -gdb-switches -quiet', ' ')
-        else
-            "using user specified gdb
-            "using vim-tools/plugin/.gdbinit
-            return split('sb -debug-exe '.g:gdbpath.' -s '.sbroot.' -debug -no-debug-backing-stores -gdb-switches -x -gdb-switches '.s:scriptDir.'/.gdbinit -gdb-switches -quiet', ' ')
         endif
     elseif executable('sbgdb')
         return ['sbgdb']
+    elseif exists('g:termdebugger')
+        return [g:termdebugger]
     else
         return ['gdb']
     endif
@@ -185,10 +187,10 @@ func! s:InstallMaps()
   call s:CreateMap('<F11>',   ':Step<CR>', 'n')
   call s:CreateMap('<S-F11>', ':GDB finish<CR>', 'n')
   call s:CreateMap('<F12>',   ':GDB finish<CR>', 'n')
-  call s:CreateMap('U',       ':call UpStackImpl()<CR>', 'n')
-  call s:CreateMap('D',       ':call DownStackImpl()<CR>', 'n')
-  call s:CreateMap('<C-P>',   ':call PrintHelper(0)<CR>', 'n')
-  call s:CreateMap('<C-P>',   'y:call PrintHelper(1)<CR>', 'v')
+  call s:CreateMap('U',       ':call TermDebugUpStack()<CR>', 'n')
+  call s:CreateMap('D',       ':call TermDebugDownStack()<CR>', 'n')
+  call s:CreateMap('<C-P>',   ':call TermDebugPrintHelper(0)<CR>', 'n')
+  call s:CreateMap('<C-P>',   'y:call TermDebugPrintHelper(1)<CR>', 'v')
 endfunction " }}}
 " s:RestoreMaps: restores user maps {{{
 function! s:RestoreMaps()
@@ -262,8 +264,8 @@ function! s:InstallRuntimeMenuItems()
     amenu &Gdb.-sep5-      <Nop>
 
     " print value at cursor
-    call s:InstallRuntimeMenuItem('n', '&Gdb.&Print\ Value<Tab>Ctrl-P', ':call PrintHelper(0)<CR>')
-    call s:InstallRuntimeMenuItem('v', '&Gdb.&Print\ Value<Tab>Ctrl-P', 'y:call PrintHelper(1)<CR>')
+    call s:InstallRuntimeMenuItem('n', '&Gdb.&Print\ Value<Tab>Ctrl-P', ':call TermDebugPrintHelper(0)<CR>')
+    call s:InstallRuntimeMenuItem('v', '&Gdb.&Print\ Value<Tab>Ctrl-P', 'y:call TermDebugPrintHelper(1)<CR>')
     call s:InstallRuntimeMenuItem('n', '&Gdb.Run\ Command', ':GDB<Space>')
 
     amenu &Gdb.-sep6- <Nop>

@@ -19,4 +19,5 @@ if has('gui')
     amenu &Mathworks.&Run.&3\ MATLAB\ desktop       :call mw#gdb#StartMATLAB(0, '-desktop')<CR>
     amenu &Mathworks.&Run.&4\ MATLAB\ custom        :call mw#gdb#StartMATLABWithCustomCmdLineArgs(0)<CR>
     amenu &Mathworks.&Run.&5\ MATLAB\ -check_malloc :call mw#gdb#StartMATLAB(0, '-check_malloc')<CR>
+    amenu &Mathworks.&Run.&6\ MATLAB\ (pre-load\ Simulink) :MWRunMATLABLoadSL<CR>
 endif
