@@ -665,16 +665,13 @@ func! s:SendCommand(cmd)
 endfunc
 
 " This is global so that a user can create their mappings with this.
+" Note: If the program is running when this command is called, it
+" interrupts the program
 func! TermDebugSendCommand(cmd)
   if s:way == 'prompt'
     call ch_sendraw(s:gdb_channel, a:cmd . "\n")
   else
-    if !s:stopped
-      call s:SendCommand('-exec-interrupt')
-      sleep 10m
-    endif
-    "call s:ShowGdb()
-    ":silent! execute "normal! GA\<ESC>"
+    call s:InterruptInferior()
     call s:TermSendKeys(s:gdbjob, a:cmd . "\r")
   endif
 endfunc
@@ -895,7 +892,7 @@ func! s:LoadSharedLibraryContainingFile(filePath)
 	return
     endif
     let s:pending_breakpoint_dlls[dllname] = 1
-    call TermDebugSendCommand('sb-auto-load-libs '.dllname)
+    call s:SendCommand('sb-auto-load-libs '.dllname)
 endfunc
 
 " Handle a message received from gdb on the GDB/MI interface.
@@ -922,7 +919,7 @@ func! s:CommOutput(chan, msg)
     if msg =~ '^\(\*stopped\|\*running\)'
       call s:HandleCursor(msg)
     elseif msg =~ '^\(=thread-selected\|\^done,frame=\)'
-      call s:HandleCFrameInfo(msg)
+      call s:HandleCFrameOrStoppedMsg(msg)
     elseif msg =~ '\^done,bkpt=' || msg =~ '=breakpoint-created,'
       call s:HandleBreakpointCreated(msg)
     elseif msg =~ '^\^done,BreakpointTable='
@@ -1140,10 +1137,7 @@ func! s:DeleteCommands()
   sign undefine debugPC
 endfunc
 
-func! s:LocationCmd(at, cmd)
-  " Setting a breakpoint may not work while the program is running.
-  " Interrupt to make it work.
-  let do_continue = 0
+func! s:InterruptInferior()
   if !s:stopped
     let do_continue = 1
     if s:way == 'prompt'
@@ -1153,6 +1147,9 @@ func! s:LocationCmd(at, cmd)
     endif
     sleep 10m
   endif
+endfunc
+
+func! s:LocationCmd(at, cmd)
   if !empty(a:at)
     let at = a:at
   elseif exists('*TermdebugFilenameModifier')
@@ -1163,9 +1160,6 @@ func! s:LocationCmd(at, cmd)
   endif
 
   call s:SendCommand(a:cmd.' '.at)
-  if do_continue
-    call s:SendCommand('-exec-continue')
-  endif
 endfunc
 
 " :Break - Set a breakpoint at the cursor position.
@@ -1411,19 +1405,20 @@ func! s:UpdateFramePtr(level)
   call win_gotoid(curwin)
 endfunction
 
-
-func! s:HandleCFrameInfo(msg)
+func! s:HandleCFrameOrStoppedMsg(msg)
   if a:msg !~ 'level='
-    return
+    let level = s:GetMiValue(a:msg, 'level') + 0
+  else
+    let level = 0
   endif
-  let level = s:GetMiValue(a:msg, 'level') + 0
+
   let s:current_frame_type = 'c'
   let s:current_frame_idx = level
 
   keepalt call s:UpdateFramePtr(level)
 
   let fname = s:GetFullname(a:msg)
-  if fname != ''
+  if filereadable(fname)
     let lnum = s:GetMiValue(a:msg, 'line') + 0
     keepalt call s:OpenCursorPosition(fname, lnum)
   endif
@@ -1484,6 +1479,11 @@ function! s:UpdateStackWindow(lines)
   let curwin = win_getid()
   let winnum = s:ShowStackPre()
   
+  " When we first render the stack, we cannot be sure that we are on the
+  " very bottom of the stack. Therefore, the below is just a guess.
+  " However, all the commands like Show[CMH]Stack issue a -stack-info-frame
+  " which will place the > at the correct location.
+  let a:lines[0] = substitute(a:lines[0], '^ ', '>', 'e')
   call win_gotoid(winnum)
   call deletebufline(s:stackbuf, 1, line('$'))
   call appendbufline(s:stackbuf, 0, a:lines)
@@ -1632,7 +1632,12 @@ function! s:OpenCursorPosition(fname, lnum)
     call add(s:signcolumn_buflist, bufnr())
   endif
   setlocal signcolumn=yes
-  redraw
+
+  " This does not seem to be necessary? Very rarely, it seems like the
+  " program counter doesn't render correctly if we do not redraw. However,
+  " it is rare enough that doing it all the time is not worth it because it
+  " does result in a noticeable flash
+  " redraw
 endfunction " }}}
 
 " Handle stopping and running message from gdb. Updates the s:stopped
@@ -1649,19 +1654,16 @@ func! s:HandleCursor(msg)
     let s:stopped = 1
     call foreground()
 
-    " Should we change to just a plain C stack if we get here due to a
-    " SIGINT?
-    " let stoppedReason = s:GetMiValue(a:msg, "reason")
-    " if stoppedReason != "breakpoint-hit"
-    "   " If we get here due to a signal (like CTRL-C being pressed), we
-    "   " might not be in the main MATLAB thread. At the time, issuing the
-    "   " hybrid_stack command creates a SIGABORT signal to get generated
-    "   " which in turn calls us again!
-    "   let s:current_stack_type = 'c'
-    " endif
-
-    call s:UpdateStackIfVisible()
-    call s:SendCommand('-stack-info-frame')
+    let fname = s:GetFullname(a:msg)
+    if filereadable(fname)
+      " We can get to HandleCursor because of some very temporary *stopped
+      " mssages (because of DLLs loading, temporarily interrupting GDB
+      " etc.). Issuing these commands at this time usually results in GDB
+      " errors. If the *stopped message has a readable filename, hopefully,
+      " that's a "real" stop.
+      call s:UpdateStackIfVisible()
+      call s:HandleCFrameOrStoppedMsg(a:msg)
+    endif
 
   elseif a:msg =~ '^\*running,thread-id="all"'
     let s:stopped = 0
