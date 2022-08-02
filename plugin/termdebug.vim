@@ -893,6 +893,7 @@ func! s:LoadSharedLibraryContainingFile(filePath)
     endif
     let s:pending_breakpoint_dlls[dllname] = 1
     call s:SendCommand('sb-auto-load-libs '.dllname)
+    echo 'loaded shared library '.dllname
 endfunc
 
 " Handle a message received from gdb on the GDB/MI interface.
@@ -1406,7 +1407,7 @@ func! s:UpdateFramePtr(level)
 endfunction
 
 func! s:HandleCFrameOrStoppedMsg(msg)
-  if a:msg !~ 'level='
+  if a:msg =~ 'level='
     let level = s:GetMiValue(a:msg, 'level') + 0
   else
     let level = 0
@@ -1632,7 +1633,6 @@ function! s:OpenCursorPosition(fname, lnum)
     call add(s:signcolumn_buflist, bufnr())
   endif
   setlocal signcolumn=yes
-
   " This does not seem to be necessary? Very rarely, it seems like the
   " program counter doesn't render correctly if we do not redraw. However,
   " it is rare enough that doing it all the time is not worth it because it

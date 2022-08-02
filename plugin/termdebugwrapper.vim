@@ -257,8 +257,8 @@ function! s:InstallRuntimeMenuItems()
 
     amenu &Gdb.-sep4-      <Nop>
 
-    call s:InstallRuntimeMenuItem('a', '&Gdb.&Up\ Stack\ (caller)<Tab>U', ':call UpStackImpl()<CR>')
-    call s:InstallRuntimeMenuItem('a', '&Gdb.&Down\ Stack\ (callee)<Tab>D', ':call DownStackImpl()<CR>')
+    call s:InstallRuntimeMenuItem('a', '&Gdb.&Up\ Stack\ (caller)<Tab>U', ':call TermDebugUpStack()<CR>')
+    call s:InstallRuntimeMenuItem('a', '&Gdb.&Down\ Stack\ (callee)<Tab>D', ':call TermDebugDownStack()<CR>')
     call s:InstallRuntimeMenuItem('a', '&Gdb.&Goto\ Frame', ':GDB frame ')
 
     amenu &Gdb.-sep5-      <Nop>
