@@ -241,7 +241,7 @@ function! s:InstallRuntimeMenuItems()
     amenu &Gdb.-sep2- <Nop>
 
     call s:InstallRuntimeMenuItem('a', '&Gdb.&Step\ Into<Tab><F11>', ':Step<CR>')
-    call s:InstallRuntimeMenuItem('a', '&Gdb.&Next<Tab><F10>', ':Next<CR>')
+    call s:InstallRuntimeMenuItem('a', '&Gdb.&Next<Tab><F10>', ':Over<CR>')
     call s:InstallRuntimeMenuItem('a', '&Gdb.Step\ &Out<Tab>Shift-<F11>', ':Finish<CR>')
     call s:InstallRuntimeMenuItem('a', '&Gdb.&Until', ':Until<CR>')
     call s:InstallRuntimeMenuItem('a', '&Gdb.&Run', ':Run<CR>')

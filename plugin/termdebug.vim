@@ -910,7 +910,7 @@ func! s:LoadSharedLibraryContainingFile(filePath)
     endif
     let s:pending_breakpoint_dlls[dllname] = 1
     call s:SendCommand('sb-auto-load-libs '.dllname)
-    echo 'loaded shared library '.dllname
+    echo 'GDB finished loading debug symbols for '.dllname.'. Breakpoint turns red when and if MATLAB loads '.dllname.'.'
 endfunc
 
 " Handle a message received from gdb on the GDB/MI interface.
