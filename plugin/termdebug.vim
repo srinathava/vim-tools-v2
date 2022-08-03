@@ -117,6 +117,7 @@ if !exists('g:termdebug_reset_vars') || g:termdebug_reset_vars
 
   let s:pending_breakpoint_files = {}
   let s:pending_breakpoint_dlls = {}
+  let s:gdbstatus = ''
 endif
 
 func! s:Debug(msg)
@@ -392,8 +393,22 @@ func! s:StartDebug_term(dict)
   endif
 endfunc
 
+func! s:MakeGDBCommandLineVisibleAndInTerminalMode(msg)
+    let curwinid = win_getid(winnr())
+    call win_gotoid(s:gdbwin)
+    let gdbwinmode= mode()
+    if gdbwinmode != 't'
+        normal! GA
+    endif
+    call win_gotoid(curwinid)
+endfunc
+
 func! s:OnGdbMainOutput(dict, chan, msg)
   if s:foundGdbPrompt
+      if a:msg =~ '(gdb)'
+          " GDB command is finished executing.
+          call s:MakeGDBCommandLineVisibleAndInTerminalMode(a:msg)
+      endif
       return
   endif
 
@@ -607,7 +622,9 @@ func! s:StartDebugCommon(dict)
 
   " Enable showing a balloon with eval info
   if has("balloon_eval") || has("balloon_eval_term")
-    set balloonexpr=TermDebugBalloonExpr()
+    set balloonexpr=
+    "ppatil: temporarily commenting out hover-over as it crashes GDB.
+    "set balloonexpr=TermDebugBalloonExpr()
     if has("balloon_eval")
       set ballooneval
     endif
@@ -933,16 +950,14 @@ func! s:CommOutput(chan, msg)
       let s:current_stack_type = 'c'
       call s:HandleCStackInfo(msg)
     elseif msg =~ '^=thread-group-added'
-      let g:gdbstatus='gdb-started'
-      let g:sharedlibrary_loaded_onthefly = []
-      let g:files_whose_sharedlibrary_loaded_onthefly = []
+      let s:gdbstatus='gdb-started'
     elseif msg =~ '^=thread-group-started'
-      let g:gdbstatus='inferior-attached'
+      let s:gdbstatus='inferior-attached'
       "does s:SendCommand work or needed here?
       call s:SendCommand('info b')
       call s:HandleProgramRun(msg)
     elseif msg =~ '^=thread-group-exited' 
-      let g:gdbstatus='inferior-exited'
+      let s:gdbstatus='inferior-exited'
     elseif msg =~ '^\^done,value='
       call s:HandleEvaluate(msg)
     elseif msg =~ '^\^error,msg='
@@ -960,7 +975,7 @@ func! s:CommOutput(chan, msg)
       " breakpoint is pending, load sharedlibrary
       " example command: info b $bpNum
       " example msg    : 17     breakpoint     keep y   <PENDING> matlab/toolbox/stateflow/src/stateflow/cdr/cdr_eml_construct.cpp:682\n
-      if g:gdbstatus == 'inferior-attached'
+      if s:gdbstatus == 'inferior-attached'
 	let s:filePath = msg[stridx(msg, pendingBreakpointInfoOutputPatternString) + len(pendingBreakpointInfoOutputPatternString):stridx(msg, ":") - 1]       
 	call s:LoadSharedLibraryContainingFile(s:filePath)
       endif
