@@ -118,6 +118,7 @@ if !exists('g:termdebug_reset_vars') || g:termdebug_reset_vars
   let s:pending_breakpoint_files = {}
   let s:pending_breakpoint_dlls = {}
   let s:gdbstatus = ''
+  let s:evalexpr = ''
 endif
 
 func! s:Debug(msg)
@@ -624,7 +625,7 @@ func! s:StartDebugCommon(dict)
   if has("balloon_eval") || has("balloon_eval_term")
     set balloonexpr=
     "ppatil: temporarily commenting out hover-over as it crashes GDB.
-    "set balloonexpr=TermDebugBalloonExpr()
+    set balloonexpr=TermDebugBalloonExpr()
     if has("balloon_eval")
       set ballooneval
     endif
@@ -928,6 +929,7 @@ func! s:CommOutput(chan, msg)
   " Do not process the last line of the message (hence the 0:-2). This
   " prevents us from processing incomplete lines.
   for msg in msgs[0:-2]
+
     let msg = trim(msg)
     if msg == ''
       continue
@@ -958,7 +960,7 @@ func! s:CommOutput(chan, msg)
       call s:HandleProgramRun(msg)
     elseif msg =~ '^=thread-group-exited' 
       let s:gdbstatus='inferior-exited'
-    elseif msg =~ '^\^done,value='
+    elseif msg =~ '^\^done,value=' || msg =~ s:evalexpr.' =' || msg =~ 'ans ='
       call s:HandleEvaluate(msg)
     elseif msg =~ '^\^error,msg='
       call s:HandleError(msg)
@@ -1533,7 +1535,12 @@ func! s:Run(args)
 endfunc
 
 func! s:SendEval(expr)
-  call s:SendCommand('-data-evaluate-expression "' . a:expr . '"')
+    if s:current_frame_type == "m"
+        let pmlCmd = "printf \"%s\", SF::EvaluateCmdAtMATLABStackLevel(".s:current_frame_idx.",\"".a:expr."\")"."\r"
+        call s:SendCommand(pmlCmd)
+    else
+        call s:SendCommand('-data-evaluate-expression "' . a:expr . '"')
+    endif
   let s:evalexpr = a:expr
 endfunc
 
@@ -1560,21 +1567,27 @@ endfunc
 func! s:HandleEvaluate(msg)
   let value = substitute(a:msg, '.*value="\(.*\)"', '\1', '')
   let value = substitute(value, '\\"', '"', 'g')
+  if s:current_frame_type == "m"
+    let evalresultprefix = ''
+  else
+    let evalresultprefix = s:evalexpr . ':'
+  endif
   if s:evalFromBalloonExpr
     if s:evalFromBalloonExprResult == ''
-      let s:evalFromBalloonExprResult = s:evalexpr . ': ' . value
+      let s:evalFromBalloonExprResult = evalresultprefix . value
     else
       let s:evalFromBalloonExprResult .= ' = ' . value
     endif
     call balloon_show(s:evalFromBalloonExprResult)
   else
-    echomsg '"' . s:evalexpr . '": ' . value
+    echomsg '"' . evalresultprefix . value
   endif
 
   if s:evalexpr[0] != '*' && value =~ '^0x' && value != '0x0' && value !~ '"$'
     " Looks like a pointer, also display what it points to.
+    let s:evalFromBalloonExpr = 0
     let s:ignoreEvalError = 1
-    call s:SendEval('*' . s:evalexpr)
+    "call s:SendEval('*' . s:evalexpr)
   else
     let s:evalFromBalloonExpr = 0
   endif
@@ -1637,8 +1650,11 @@ function! s:OpenCursorPosition(fname, lnum)
     return
   endif
   call s:GotoSourcewinOrCreateIt()
-  if expand('%:p') != fnamemodify(a:fname, ':p')
+  if a:fname !~ @% 
     exec 'drop '.fnameescape(a:fname)
+  elseif a:lnum <= line('w0') || a:lnum >= line('w$')
+      " redraw when a:fname is currently visible but a:lnum is not
+      redraw
   endif
   exe a:lnum
   exe 'sign unplace ' . s:pc_id
@@ -1648,11 +1664,6 @@ function! s:OpenCursorPosition(fname, lnum)
     call add(s:signcolumn_buflist, bufnr())
   endif
   setlocal signcolumn=yes
-  " This does not seem to be necessary? Very rarely, it seems like the
-  " program counter doesn't render correctly if we do not redraw. However,
-  " it is rare enough that doing it all the time is not worth it because it
-  " does result in a noticeable flash
-  " redraw
 endfunction " }}}
 
 " Handle stopping and running message from gdb. Updates the s:stopped

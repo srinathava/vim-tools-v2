@@ -73,7 +73,7 @@
 
     <project name="stateflow_mfiles">
         <include path="matlab/toolbox/stateflow/stateflow" pattern="*.m *.html" />
-        <include path="matlab/toolbox/stateflow/coder" pattern="*.cdr" />
+        <include path="matlab/toolbox/stateflow/coder" pattern="*.m" />
         <include path="matlab/resources/Stateflow/en" pattern="*.xml" />
     </project>
 
