@@ -1569,6 +1569,7 @@ func! s:HandleEvaluate(msg)
   let value = substitute(value, '\\"', '"', 'g')
   if s:current_frame_type == "m"
     let evalresultprefix = ''
+    let value = value[2:len(value)-2]
   else
     let evalresultprefix = s:evalexpr . ':'
   endif
@@ -1578,6 +1579,8 @@ func! s:HandleEvaluate(msg)
     else
       let s:evalFromBalloonExprResult .= ' = ' . value
     endif
+    let s:evalFromBalloonExprResult = substitute(s:evalFromBalloonExprResult,'"',"'","g")
+    let s:evalFromBalloonExprResult = trim(eval('"'.s:evalFromBalloonExprResult.'"'))
     call balloon_show(s:evalFromBalloonExprResult)
   else
     echomsg '"' . evalresultprefix . value
