@@ -872,7 +872,7 @@ func! TermDebugPrintHelper(isVisual)
     else
 	let varName = expand('<cword>')
     endif
-    if s:current_frame_type == "m"
+    if s:current_frame_type == "M"
         let pmlCmd = "printf \"%s\", SF::EvaluateCmdAtMATLABStackLevel(".s:current_frame_idx.",\"".varName."\")"."\r"
         call s:TermSendKeys(s:gdbjob, pmlCmd)
     else
@@ -1397,7 +1397,7 @@ func! s:GotoSelectedFrame(bufline)
   exec 'keeppatterns silent! % s/^>/ /e'
   exec 'keeppatterns silent! '.a:bufline.' s/^ />/e'
   call s:OpenCursorPosition(filename, linenum)
-  if s:current_frame_type == 'c'
+  if s:current_frame_type == 'C'
     " For C frames, we also need to communicate the frame level to GDB so
     " CTRL-P etc. works.
     call TermDebugSendCommand("frame ".framenum)
@@ -1430,7 +1430,7 @@ func! s:HandleCFrameOrStoppedMsg(msg)
     let level = 0
   endif
 
-  let s:current_frame_type = 'c'
+  let s:current_frame_type = 'C'
   let s:current_frame_idx = level
 
   keepalt call s:UpdateFramePtr(level)
@@ -1535,7 +1535,7 @@ func! s:Run(args)
 endfunc
 
 func! s:SendEval(expr)
-    if s:current_frame_type == "m"
+    if s:current_frame_type == "M"
         let pmlCmd = "printf \"%s\", SF::EvaluateCmdAtMATLABStackLevel(".s:current_frame_idx.",\"".a:expr."\")"."\r"
         call s:SendCommand(pmlCmd)
     else
@@ -1567,7 +1567,7 @@ endfunc
 func! s:HandleEvaluate(msg)
   let value = substitute(a:msg, '.*value="\(.*\)"', '\1', '')
   let value = substitute(value, '\\"', '"', 'g')
-  if s:current_frame_type == "m"
+  if s:current_frame_type == "M"
     let evalresultprefix = ''
     let value = value[2:len(value)-2]
   else
