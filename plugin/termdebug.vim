@@ -110,6 +110,9 @@ if !exists('g:termdebug_reset_vars') || g:termdebug_reset_vars
   let s:hybrid_stack = ''
 
   let s:debug_log = ''
+  let s:stoppedInMATLAB = v:false
+  let s:MLBreakpoints = {}
+
 
   let s:current_frame_type = ''
   let s:current_frame_idx = -1
@@ -917,7 +920,6 @@ endfunc
 " Handle a message received from gdb on the GDB/MI interface.
 func! s:CommOutput(chan, msg)
   let msgs = split(a:msg, "\r", v:true)
-
   " This rigamarole with pendingOutput is to account for truncated lines.
   " We occassionally get a single GDB message split across multiple calls
   " to on_stdout. Therefore, keep pending messages around untile we get a
@@ -937,6 +939,9 @@ func! s:CommOutput(chan, msg)
     " WISH: Just pass how we are calling HandleCursor instead of repeating
     " regexps in HandleCursor
     if msg =~ '^\(\*stopped\|\*running\)'
+        if msg =~ '^\*stopped' && s:gdbstatus == 'InferiorRunning'
+          let s:gdbstatus = 'InferiorStopped'
+        endif
       call s:HandleCursor(msg)
     elseif msg =~ '^\(=thread-selected\|\^done,frame=\)'
       call s:HandleCFrameOrStoppedMsg(msg)
@@ -952,14 +957,16 @@ func! s:CommOutput(chan, msg)
       let s:current_stack_type = 'c'
       call s:HandleCStackInfo(msg)
     elseif msg =~ '^=thread-group-added'
-      let s:gdbstatus='gdb-started'
+      let s:gdbstatus='GdbStarted'
     elseif msg =~ '^=thread-group-started'
-      let s:gdbstatus='inferior-attached'
+      let s:gdbstatus='InferiorAttached'
+      call s:UpdateMLBreakpoint(v:true)
       "does s:SendCommand work or needed here?
       call s:SendCommand('info b')
       call s:HandleProgramRun(msg)
     elseif msg =~ '^=thread-group-exited' 
-      let s:gdbstatus='inferior-exited'
+      let s:gdbstatus='InferiorExited'
+      call s:UpdateMLBreakpoint(v:false)
     elseif msg =~ '^\^done,value=' || msg =~ s:evalexpr.' =' || msg =~ 'ans ='
       call s:HandleEvaluate(msg)
     elseif msg =~ '^\^error,msg='
@@ -973,11 +980,17 @@ func! s:CommOutput(chan, msg)
 	let s:collecting_hybrid_stack = 0
 	call s:HandleMOrHybridStackInfo()
       endif
+    elseif msg =~ '^\^running'
+        let oldGdbstatus = s:gdbstatus
+        let s:gdbstatus = 'InferiorRunning'
+        if oldGdbstatus == 'InferiorAttached'
+            call s:UpdateMLBreakpoint(v:true)
+        endif
     elseif stridx(msg, pendingBreakpointInfoOutputPatternString) > 0
       " breakpoint is pending, load sharedlibrary
       " example command: info b $bpNum
       " example msg    : 17     breakpoint     keep y   <PENDING> matlab/toolbox/stateflow/src/stateflow/cdr/cdr_eml_construct.cpp:682\n
-      if s:gdbstatus == 'inferior-attached'
+      if s:gdbstatus == 'InferiorAttached' || s:gdbstatus == 'InferiorRunning' || s:gdbstatus == 'InferiorStopped'
 	let s:filePath = msg[stridx(msg, pendingBreakpointInfoOutputPatternString) + len(pendingBreakpointInfoOutputPatternString):stridx(msg, ":") - 1]       
 	call s:LoadSharedLibraryContainingFile(s:filePath)
       endif
@@ -998,21 +1011,40 @@ func! s:GotoProgram()
     call win_gotoid(s:ptywin)
   endif
 endfunc
-
+func! s:GDBDebuggerCommandWrapperForTerm(cDebugCommand, mDebugCommand)
+    if s:stoppedInMATLAB == v:true
+        let s:stoppedInMATLAB = v:false
+        call s:SendCommand(a:mDebugCommand)
+    else
+        call TermDebugSendCommand(a:cDebugCommand)
+    end
+endfunc
+func! s:GDBDebuggerCommandWrapper(cDebugCommand, mDebugCommand)
+    if s:stoppedInMATLAB == v:true
+        let s:stoppedInMATLAB = v:false
+        call s:SendCommand(a:mDebugCommand)
+    else
+        call s:SendCommand(a:cDebugCommand)
+    end
+endfunc
 func! s:StepWrapper()
-  call s:SendCommand('-exec-step')
+    call s:GDBDebuggerCommandWrapper('-exec-step','dbstepin')
 endfunc
 
 func! s:OverWrapper()
-  call s:SendCommand('-exec-next')
+    call s:GDBDebuggerCommandWrapper('-exec-next','dbstep')
+endfunc
+
+func! s:FinishWrapper()
+    call s:GDBDebuggerCommandWrapper('-exec-finish','dbstepout')
 endfunc
 
 func! s:ContinueWrapper()
-  if s:way == 'prompt'
-    call s:SendCommand('continue')
-  else
-    call TermDebugSendCommand("continue")
-  endif
+    if s:way == 'prompt'
+        call s:GDBDebuggerCommandWrapper('-exec-continue','dbcont')
+    else
+        call s:GDBDebuggerCommandWrapperForTerm('continue','dbcont')
+    endif
 endfunc
 
 " Install commands in the current window to control the debugger.
@@ -1027,8 +1059,8 @@ func! s:InstallCommands()
   command! Clear call s:ClearBreakpoint()
   command! Step call s:StepWrapper()
   command! Over call s:OverWrapper()
+  command! Finish call s:FinishWrapper()
   " Use finish so that GDB displays the helpful return value
-  command! Finish call s:SendCommand('finish')
   command! -nargs=* Run call s:Run(<q-args>)
   command! -nargs=* Arguments call s:SendCommand('-exec-arguments ' . <q-args>)
   command! Stop call s:SendCommand('-exec-interrupt')
@@ -1207,8 +1239,60 @@ func! s:ClearBreakpoint()
     call s:SendCommand('-break-delete '.id)
   endfor
 endfunc
+func! ResumeMATLAB(arg1)
+    call TermDebugSendCommand('c')
+endfunc
+func! s:UpdateMLBreakpoint(resumeMATLAB)
+    if empty(s:MLBreakpoints)
+        return
+    endif
+    if a:resumeMATLAB && s:gdbstatus == 'InferiorAttached'
+        let timer = timer_start(100,'ResumeMATLAB')
+        return
+    endif
+    for bpKey in keys(s:MLBreakpoints)
+        let bpInfo = split(bpKey,':')
+        call s:ToggleMLBreakpoint(bpInfo[0], bpInfo[1])
+        call s:ToggleMLBreakpoint(bpInfo[0], bpInfo[1])
+    endfor
+    if a:resumeMATLAB
+        let timer = timer_start(100,'ResumeMATLAB')
+    endif
+
+endfunc
+
+func! s:ToggleMLBreakpoint(fileName, lineNumber)
+  if a:fileName !~ '\.m$'
+      return;
+  endif
+  let breakpointId = a:fileName.':'.a:lineNumber
+  let pendingMLBreakpoint = s:gdbstatus != 'InferiorRunning' && s:gdbstatus != 'InferiorStopped'
+  let signName = 'MLBreakpoint'
+  if pendingMLBreakpoint
+      let signName = signName.'Pending'
+  endif
+  let currentSign = sign_getplaced(a:fileName, {'lnum': a:lineNumber})
+  call sign_define('MLBreakpointPending', {'text':'M>', 'texthl':'debugBreakpointPending'})
+  call sign_define('MLBreakpoint', {'text':'M>', 'texthl':'debugBreakpoint'})
+  if empty(currentSign[0].signs)
+      let MLBreakpointToggleCommand = "mleval \"SF4MLTest.Utils.ToggleMATLABBreakpoint('".a:fileName."','".a:lineNumber."',1)\""
+      let signId = sign_place(0, '', signName, a:fileName, {'lnum': a:lineNumber})
+      let s:MLBreakpoints[breakpointId] = signId
+  else
+      let MLBreakpointToggleCommand = "mleval \"SF4MLTest.Utils.ToggleMATLABBreakpoint('".a:fileName."','".a:lineNumber."',-1)\""
+      call sign_unplace('', {'id': s:MLBreakpoints[breakpointId]})
+      unlet s:MLBreakpoints[breakpointId] 
+  endif
+  if !pendingMLBreakpoint
+      call TermDebugSendCommand(MLBreakpointToggleCommand)
+  endif
+endfunc
 
 func! s:ToggleBreakpoint()
+  if expand('%:p') =~ '\.m$'
+    call s:ToggleMLBreakpoint(expand('%:p'),line('.'))
+    return
+  endif
   if s:gdb_started == 0
     call s:Debug('setting pending breakpoint')
     call s:TogglePendingBreakpoint()
@@ -1422,7 +1506,21 @@ func! s:UpdateFramePtr(level)
   exec 'keeppatterns silent! % s/^ \ze#'.a:level.' .*'.marker.'/>/e'
   call win_gotoid(curwin)
 endfunction
-
+func! s:handleMCStackSwitching(msg)
+    let fname = s:GetFullname(a:msg)
+    let fcnname = s:GetMiValue(a:msg, 'func')
+    if fname =~'SFXDebugCallbackHandler' && fcnname =~'MATLAB_GDB_Debugger' && a:msg!~ '^=thread-selected' && s:stoppedInMATLAB == v:false
+        let s:stoppedInMATLAB = v:true
+        call s:ShowMStack()
+        return v:true
+    endif
+    if a:msg!~ '^=thread-selected' && s:current_stack_type == 'm'
+        let s:current_stack_type = 'c'
+        call s:ShowCStack()
+        return v:true
+    endif
+    return v:false
+endfunc
 func! s:HandleCFrameOrStoppedMsg(msg)
   if a:msg =~ 'level='
     let level = s:GetMiValue(a:msg, 'level') + 0
@@ -1438,6 +1536,9 @@ func! s:HandleCFrameOrStoppedMsg(msg)
   let fname = s:GetFullname(a:msg)
   if filereadable(fname)
     let lnum = s:GetMiValue(a:msg, 'line') + 0
+    if level == 0 && s:handleMCStackSwitching(a:msg)
+        return
+    endif
     keepalt call s:OpenCursorPosition(fname, lnum)
   endif
 endfunc
@@ -1468,7 +1569,6 @@ func! s:ProcessCStackInfo(msg)
     endif
 
     let level = s:GetMiValue(frame, 'level') + 0
-    let langlevel = s:GetMiValue(frame,'langlevel')
     let fcnname = substitute(s:GetMiValue(frame, 'func')," ","","g")
     let fcnname = fcnname[0:min([50,len(fcnname)])]
     let fname = s:GetFullname(frame)
