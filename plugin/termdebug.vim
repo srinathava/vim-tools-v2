@@ -1106,6 +1106,7 @@ function! s:ShowGdb()
     else
       exec 'sb '.s:gdbjob['buffer']
     endif
+    let s:gdbwin = win_getid(winnr())
   endif
 endfunc
 
