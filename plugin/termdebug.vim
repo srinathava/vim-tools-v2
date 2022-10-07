@@ -1466,7 +1466,7 @@ endfunc
 
 func! s:GotoSelectedFrame(bufline)
   let lineText = getline(a:bufline)
-  let matches = matchlist(lineText, '#\(\d\+\)\s\+\(\S\+\) at \(\S\+\):\(\d\+\) (\([CM]\))')
+  let matches = matchlist(lineText, '#\(\d\+\)\s\+\(.\+\) at \(\S\+\):\(\d\+\) (\([CM]\))')
   if len(matches) == 0
     return
   endif

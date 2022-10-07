@@ -118,34 +118,6 @@ function! mw#utils#AssertThatWeHaveAValidProject()
         echo "You are not in a sandbox. Use :cd to go to a sandbox directory"
         echohl None
         throw "ERROR: Invalid location"
-    else
-        return
-    endif
-
-    let vimProjFile = findfile('.vimproj.xml', '.;')
-    if vimProjFile == ''
-        let vimProjFile = fnamemodify('~/.vimproj.xml', ':p')
-        if !filereadable(vimProjFile)
-
-            let cmd = "cp ".g:MW_rootDir."/vimproj.xml.template ~/.vimproj.xml"
-            echohl Error
-            echomsg "There is no .vimproj.xml file in either the root of your sandbox"
-            echomsg "or your $HOME directory. Please make a copy of:"
-            echomsg ""
-            echomsg cmd
-            echomsg ""
-            echomsg "into your $HOME directory and modify it according to your needs"
-            echohl None
-
-            echo ""
-            let response = input("Do you want me to create ~/.vimproj.xml for you now? y/n: ", "y")
-            if response == "y"
-                call system(cmd)
-                return
-            endif
-
-            throw "ERROR: Missing .vimproj.xml file."
-        endif
     endif
 endfunction " }}}
 

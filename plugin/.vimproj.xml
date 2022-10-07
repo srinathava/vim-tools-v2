@@ -1,31 +1,8 @@
 <solution>
-    <module path="matlab/toolbox/stateflow/src/stateflow" extraIncludes="*.ccdr *.stub *.yac"></module>
-    <module path="matlab/toolbox/stateflow/src/sf_editor"></module>
-    <module path="matlab/toolbox/stateflow/src/sf_badges"></module>
-    <module path="matlab/toolbox/stateflow/src/sfdi_datamodel_mi"></module>
-    <module path="matlab/toolbox/stateflow/src/sfdi_datamodel" extraIncludes="*.cmof"></module>
-    <module path="matlab/toolbox/stateflow/src/sf_runtime" extraIncludes="*.stub"></module>
-    <module path="matlab/toolbox/stateflow/src/sf_sfun"></module>
-    <module path="matlab/toolbox/stateflow/src/stateflow_resolver"></module>
-    <module path="matlab/toolbox/stateflow/src/sf_variants"></module>
-    <module path="matlab/toolbox/stateflow/src/sf_diagnostics"></module>
+    <modules_under path="matlab/toolbox/stateflow" 
+        extraIncludes="*.ccdr *.stub *.yac *.cmof *.json *.zml *.y *.js *.html *.css *.cgel *.m">
+    </modules_under>
 
-    <module path="matlab/toolbox/stateflow/sf_il"></module>
-    <module path="matlab/toolbox/stateflow/sf_shared"></module>
-    <module path="matlab/toolbox/stateflow/sf_xform"></module>
-    <module path="matlab/toolbox/stateflow/sf_services"></module>
-    <module path="matlab/toolbox/stateflow/sf_cdr"></module>
-    <module path="matlab/toolbox/stateflow/sf_analysis"></module>
-    <module path="matlab/toolbox/stateflow/stateflow_plugin"></module>
-    <module path="matlab/toolbox/stateflow/sf_ir" extraIncludes="*.zml"></module>
-    <module path="matlab/toolbox/stateflow/sf_core_services" extraIncludes=".json"></module>
-    <module path="matlab/toolbox/stateflow/reqtable/analysis" extraIncludes="*.m"></module>
-    <module path="matlab/toolbox/stateflow/reqtable/datamodel" extraIncludes="*.zml"></module>
-    <module path="matlab/toolbox/stateflow/reqtable/parser" extraIncludes="*.y"></module>
-    <module path="matlab/toolbox/stateflow/reqtable/semantics" extraIncludes="*.m"></module>
-    <module path="matlab/toolbox/stateflow/reqtable/ui" extraIncludes="*.js *.html *.css"></module>
-    <module path="matlab/toolbox/stateflow/comparisons/src/diff"></module>
-    <module path="matlab/toolbox/stateflow/comparisons/src/plugin"></module>
     <module path="matlab/toolbox/vnv/requirements/datamodel/src/slreq_model" extraIncludes="*.zml"></module>
 
     <module path="matlab/src/cg_ir"></module>

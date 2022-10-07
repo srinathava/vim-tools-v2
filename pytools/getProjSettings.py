@@ -6,6 +6,12 @@ import re
 from os import path
 from pathUtils import searchUpFor
 
+DEBUG = 0
+
+def debug(msg):
+    if DEBUG:
+        print("DEBUG: %s" % msg)
+
 class Solution:
     def __init__(self):
         self.projects = []
@@ -82,8 +88,7 @@ def handleProj(dom):
 
     return proj
 
-def handleModule(dom,rootDir):
-    modPath = dom.getAttribute('path')
+def handleModuleImpl(rootDir, modPath, extraIncludes):
     depends = []
 
     name = path.basename(modPath)
@@ -91,17 +96,16 @@ def handleModule(dom,rootDir):
     moduleDLLName = ""
     makeFile = path.join(rootDir, modPath, 'Makefile')
     if path.isfile(makeFile):
-        modnameAssignText = re.search("MODNAME([\s:]*)=(.*)\n",open(makeFile).read())
+        modnameAssignText = re.search(r"MODNAME([\s:]*)=(.*)\n",open(makeFile).read())
         if modnameAssignText != None:
              moduleDLLName = modnameAssignText.group(2).strip()
 
 
     proj = Project(name, moduleDLLName, depends)
-    proj.path = modPath
+    proj.path = path.join(rootDir, modPath)
 
     incPattern = '*.[ch]pp *.c *.h'
 
-    extraIncludes = dom.getAttribute('extraIncludes')
     if extraIncludes:
         incPattern += (' %s' % extraIncludes)
 
@@ -114,6 +118,11 @@ def handleModule(dom,rootDir):
     proj.addInclude(derivedSrc, '*.[ch]pp *.c')
     proj.addExport(derivedInc, '*.hpp *.h')
     return proj
+
+
+def handleModule(dom, rootDir):
+    return handleModuleImpl(rootDir, dom.getAttribute("path"),
+            dom.getAttribute("extraIncludes"))
 
 def addModuleDependencies(modules, rootDir):
     moduleNames = set()
@@ -145,6 +154,16 @@ def addModuleDependencies(modules, rootDir):
                 if depName in moduleNames:
                     mod.depends.append(depName)
 
+def handleModuleDir(soln, rootDir, moduleDir):
+    moduleDirPath = path.join(rootDir, moduleDir.getAttribute("path"))
+    extraIncludes = moduleDir.getAttribute("extraIncludes")
+
+    for (dirname, _, files) in os.walk(moduleDirPath, topdown=True):
+        if 'MODULE_DEPENDENCIES' in files:
+            soln.projects.append(handleModuleImpl(rootDir,
+                                                  path.relpath(dirname,
+                                                               rootDir), extraIncludes))
+
 def handleSolution(dom, rootDir):
     soln = Solution()
 
@@ -156,6 +175,10 @@ def handleSolution(dom, rootDir):
     for module in modules:
         soln.projects.append(handleModule(module, rootDir))
 
+    moduleDirs = dom.getElementsByTagName("modules_under")
+    for moduleDir in moduleDirs:
+        handleModuleDir(soln, rootDir, moduleDir)
+
     return soln
 
 def getProjSettings():
@@ -165,6 +188,7 @@ def getProjSettings():
         rootDir = path.dirname(mw_anchor)
     else:
         rootDir = '.'
+
     if not projSpecFile:
         dir_path = os.path.dirname(os.path.realpath(__file__))
         homePath = path.join(dir_path,'../plugin/.vimproj.xml')
@@ -173,17 +197,21 @@ def getProjSettings():
 
     if projSpecFile:
         dom = xml.dom.minidom.parseString(open(projSpecFile).read())
-        spec = handleSolution(dom,rootDir)
+        spec = handleSolution(dom, rootDir)
         userHomePath = path.join(os.environ['HOME'], '.vimproj.xml')
         if path.exists(userHomePath):
             dom = xml.dom.minidom.parseString(open(userHomePath).read())
-            specUser = handleSolution(dom,rootDir)
+            specUser = handleSolution(dom, rootDir)
             specNames = []
+
             for proj in spec.projects:
-                specNames.append(proj.name)
+                specNames.append(proj.path)
+
             for proj in specUser.projects:
-                if proj.name not in specNames:
+                if proj.path not in specNames:
+                    # print("DEBUG: adding %s with path [%s] to project" % (proj.name, proj.path))
                     spec.projects.append(proj)
+
         if mw_anchor:
             addModuleDependencies(spec.projects, path.dirname(mw_anchor))
 
