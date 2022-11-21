@@ -13,6 +13,7 @@ command! -nargs=1 -complete=dir DiffSandbox1        :call mw#sbtools#DiffWriteab
 command! -nargs=+ -complete=dir DiffSandbox2        :call mw#sbtools#DiffWriteable2(<f-args>)
 command! -nargs=* -complete=file DiffSubmitFile     :call mw#sbtools#DiffSubmitFile(<f-args>)
 command! -nargs=0 -range AddHeaderProtection        :call mw#addHeaderProtection#DoIt()
+command! -nargs=0 MWOpenCoverageReport              :call mw#coverage#OpenCovReport()
 
 
 "command! -nargs=0 InitCppCompletion                 :call cpp_omni#Init()
@@ -90,7 +91,6 @@ nmenu &Mathworks.&Edit/Refactor.&Indent\ file :call mw#edit#FormatCurrentSelecti
 nmenu &Mathworks.&Edit/Refactor.-sep1- <Nop>
 nmenu &Mathworks.&Edit/Refactor.&Rename\ symbol :call mw#refactor#rename()<CR>
 
-
 amenu &Mathworks.-sep2- <Nop>
 amenu &Mathworks.&Tags.&Initialize\ tags                    :MWInitVimTags<CR>
 amenu &Mathworks.&Tags.Search\ through\ &Project\ tags      :call mw#tag#SelectTag(expand('%:p'))<CR>
@@ -102,7 +102,6 @@ nmenu &Mathworks.&Find.In\ &Project                 :call mw#sbtools#FindInProj(
 nmenu &Mathworks.&Find.In\ &Solution                :call mw#sbtools#FindInSolution()<CR>
 nmenu &Mathworks.&Find.Using\ sb&id                 :call mw#sbtools#FindUsingSbid()<CR>
 nmenu &Mathworks.&Find.Using\ sb&global             :call mw#sbtools#FindUsingSbglobal()<CR>
-" nmenu &Mathworks.&Find.Using\ &code\ search\ tool   :call mw#sbtools#FindUsingSourceCodeSearch()<CR>
 nmenu &Mathworks.O&Pen\ file\ in\ project<Tab><F4>  :call mw#open#OpenFile()<CR>
 
 amenu &Mathworks.-sep3- <Nop>
@@ -116,7 +115,8 @@ amenu &Mathworks.Sa&ve\ Current\ Session        :call mw#sbtools#SaveSession()<C
 amenu &Mathworks.&Load\ Saved\ Session          :call mw#sbtools#LoadSession()<CR>
 
 amenu &Mathworks.-sep5- <Nop>
-amenu &Mathworks.P&4V.&RealEdits          :call mw#perforce#RealEditsFile(expand('%:p'))<CR>
+amenu &Mathworks.P&4V.&RealEdits                :call mw#perforce#RealEditsFile(expand('%:p'))<CR>
+amenu &Mathworks.Open\ Co&verage\ Repor         :MWOpenCoverageReport<CR>
 
 if has('nvim')
     nnoremap <A-m> :lua require('mw.telescope').commands()<CR>

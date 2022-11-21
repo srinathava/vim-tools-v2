@@ -249,10 +249,6 @@ endfun
 " }}}
 
 " ==============================================================================
-" Terminal compatibility layer
-" ============================================================================== 
-
-" ==============================================================================
 " Compiling projects
 " ============================================================================== 
 " mw#sbtools#SetCompileLevelForProject:  {{{
@@ -417,7 +413,11 @@ function! s:AppendBufLine(bufnum, lines)
 
     let lnum = getbufinfo(a:bufnum)[0]['linecount']
     let winid = bufwinid(a:bufnum)
-    call nvim_win_set_cursor(winid, [lnum, 0])
+    if winid > 0
+        " Can happen if the user closed the scratch buffer after starting
+        " compile.
+        call nvim_win_set_cursor(winid, [lnum, 0])
+    endif
 endfunction
 " }}}
 " s:Nvim_OnOutput: handle nvim job output {{{

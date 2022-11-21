@@ -57,6 +57,6 @@ function! mw#perforce#RealEditsFile(fileName)
     let relPath = strpart(a:fileName, strlen(presRoot)+1)
     echo relPath
 
-    let cmd = 'python -m webbrowser http://p4db/cgi-bin/realEdits/showfile.cgi?f="'.relPath.'"'
+    let cmd = 'x-www-browser http://p4db/cgi-bin/realEdits/showfile.cgi?f="'.relPath.'"'
     call system(cmd)
 endfunction " }}}

@@ -80,6 +80,7 @@ pickers.commands = function(opts)
     {shortcut="ti", cmd="MWInitVimTags", description="Initialize Vim tags"},
     {shortcut="ta", cmd="MWAddIncludeForSymbol", description="Add include for current symbol"},
     {shortcut="rm", cmd="MWRunMATLABLoadSL", description="Run MATLAB (with Simulink load at startup)"},
+    {shortcut="cv", cmd="MWOpenCoverageReport", description="Open coverage report for current file"},
   })
 end
 

@@ -17,7 +17,7 @@ class Base(Thread):
         self.path = os.path.join(rootDir, include['path'])
         self.pattern = ' -name ' + (' -or -name '.join(include['pattern'].split()))
 
-        exclude = '-not -name bundle.index.js -not -path *l10n* -not -path *web/release*'
+        exclude = '-not -name bundle.index.js -not -name compile_commands.json -not -path *l10n* -not -path *web/release*'
         self.pattern = f'{self.path} ( {self.pattern} ) -and ( {exclude}  )'
         self.result = ''
 
