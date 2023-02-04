@@ -26,29 +26,6 @@ function! TermdebugFilenameModifier(filepath)
     endif
     return fnameescape(filepath)
 endfunction " }}}
-" TermDebugGdbCmd: return full gdb command {{{
-" Description: 
-function! TermDebugGdbCmd(pty)
-    let mw_anchor_loc = findfile('mw_anchor', '.;')
-    if mw_anchor_loc != ''
-        let sbroot = fnamemodify(mw_anchor_loc, ':h')
-        if exists('g:sbgdbpath')
-            "using user specified gdb
-            "using vim-tools/plugin/.gdbinit
-            return split('sb -debug-exe '.g:sbgdbpath.' -s '.sbroot.' -debug -no-debug-backing-stores -gdb-switches -x -gdb-switches '.s:scriptDir.'/.gdbinit -gdb-switches -quiet', ' ')
-        else
-            "using sbtools default gdb (gdb-121 as of 7/5/2022)
-            "using vim-tools/plugin/.gdbinit
-            return split('sb -s '.sbroot.' -debug -no-debug-backing-stores -gdb-switches -x -gdb-switches '.s:scriptDir.'/.gdbinit -gdb-switches -quiet', ' ')
-        endif
-    elseif executable('sbgdb')
-        return ['sbgdb']
-    elseif exists('g:termdebugger')
-        return [g:termdebugger]
-    else
-        return ['gdb']
-    endif
-endfunction " }}}
 
 " s:GetPidFromName: gets the PID from the name of a program {{{
 function! s:GetPidFromName(name)

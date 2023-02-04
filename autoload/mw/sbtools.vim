@@ -298,16 +298,21 @@ endfunction " }}}
 let g:MWDebug = 1
 function! s:GetProjectMakeProgram()
     let cdPath = s:GetModulePath()
-
+    if RequiresRemote()
+        "ppatil todo: also check if sbsyscheck==0
+        let distcc = ''
+    else
+        let distcc = '-distcc'
+    end
     if g:MWProjectCompileLevel == 1
         "1. Build source only"
-        return 'sbmake -C '.  cdPath .  '  -distcc NOBUILDTESTS=1 NORUNTESTS=1 DEBUG=1'
+        return 'sbmake -C '.  cdPath .  ' '. distcc. ' NOBUILDTESTS=1 NORUNTESTS=1 DEBUG=1'
     elseif g:MWProjectCompileLevel == 2
         "2. Build source and test"
-        return 'sbmake  -C '.  cdPath .  ' -distcc NORUNTESTS=1 DEBUG=1'
+        return 'sbmake  -C '.  cdPath .  ' '. distcc. ' NORUNTESTS=1 DEBUG=1'
     elseif g:MWProjectCompileLevel == 3
         "3. Build and run tests"
-        return 'sbmake  -C '.  cdPath .  ' -distcc DEBUG=1'
+        return 'sbmake  -C '.  cdPath .  ' '. distcc. ' DEBUG=1'
     elseif g:MWProjectCompileLevel == 4
         "4. Build for coverage"
         return 'sbmake -C '.  cdPath .  '  BCOV=1 -j 9 DEBUG=1'
@@ -315,7 +320,7 @@ function! s:GetProjectMakeProgram()
         "5. Custom compile (specified using g:MWCustomCompile)'])
         return g:MWCustomCompile
     else
-        return 'sbmake -distcc' "ERROR?"
+        return 'sbmake '.distcc.' "ERROR?"
     endif
 endfunction " }}}
 " s:GetModulePath: gets the MathWorks module for the current file {{{
@@ -378,7 +383,9 @@ function! s:HandleBuildResults(status)
         let &termwinsize = s:old_termwinsize
     endif
 
-    if a:status == 0
+    " remote compilation does not return status hence we always need to
+    " process results for adding links
+    if a:status == 0 && !RequiresRemote()
         return
     endif
 
@@ -450,12 +457,17 @@ function! s:CompileCommon(makeprg)
     let cdPath = s:GetModulePath()
     cclose
     exec 'silent! bdelete '.s:term_buf
+    let cmd = a:makeprg 
+
+    if RequiresRemote()
+        let cmd = RunOnleasedCmd(a:makeprg)
+    endif
 
     if !has('nvim')
         let s:old_termwinsize = &termwinsize
         let &termwinsize = '10*1000'
 
-        bot let s:term_buf = term_start(a:makeprg, {
+        bot let s:term_buf = term_start(cmd, {
                     \ "cwd": cdPath, 
                     \ "term_name": "sbmake term",
                     \ "exit_cb": function('s:ParseBuildResults')})
@@ -467,7 +479,7 @@ function! s:CompileCommon(makeprg)
         let s:term_buf = bufnr('%')
 
         let s:nvim_partial_data = ''
-        let s:nvim_jobid = jobstart(a:makeprg, {
+        let s:nvim_jobid = jobstart(cmd, {
             \ 'on_stdout': function('s:Nvim_OnOutput'),
             \ 'on_exit': function('s:Nvim_OnExit'),
             \ 'pty': v:true,

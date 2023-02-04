@@ -106,6 +106,11 @@ if !exists('g:termdebug_reset_vars') || g:termdebug_reset_vars
   let s:asm_lines = []
   let s:asm_addr = ''
 
+  let s:lcm_version=''
+  let s:lcm_machine=''
+  let s:lcm_portnumber = 50007
+  let s:lcm_pseudo_tty = '/tmp/pseudotty'.s:lcm_portnumber
+
   let s:collecting_hybrid_stack = 0
   let s:hybrid_stack = ''
 
@@ -308,20 +313,18 @@ function! s:TermStart(cmd, opts)
     let pty = pty_job_info['pty']
     let ptybuf = get(pty_job_info, 'buffer', -1)
   else
-    let in_io = hidden ? 'null' : 'pipe'
     let ptybuf = term_start(a:cmd, {
 	  \ 'term_name': term_name,
 	  \ 'vertical': vertical,
 	  \ 'out_cb': OutCB,
-	  \ 'in_io': in_io,
+	  \ 'in_io': 'pipe',
 	  \ 'exit_cb': ExitCB,
 	  \ 'hidden': hidden,
-	  \ 'term_finish': term_finish
+	  \ 'term_finish': term_finish,
 	  \ })
     if ptybuf == 0
       return {}
     endif
-
     let job = term_getjob(ptybuf)
     let pty = job_info(job)['tty_out']
     let jobid = -1
@@ -333,6 +336,29 @@ function! s:TermStart(cmd, opts)
 	\ 'jobid': jobid
 	\ }
 endfunction
+
+" TermDebugGdbCmd: return full gdb command {{{
+" Description: 
+function! TermDebugGdbCmd(pty)
+    let mw_anchor_loc = findfile('mw_anchor', '.;')
+    if mw_anchor_loc != ''
+        let sbroot = fnamemodify(mw_anchor_loc, ':h')
+        let gdbStartCmd = 'sb -s '.sbroot.' -debug -no-debug-backing-stores -gdb-switches -quiet'
+        if RequiresRemote()
+            let gdbStartCmd = gdbStartCmd.' -gdb-switches -nx -gdb-switches -x=/mathworks/devel/sandbox/ebalai/sftools/gdb/.gdbinit_remote'
+            let gdbStartCmd = "socat tcp-l:".s:lcm_portnumber.",reuseaddr pty,raw,link=".s:lcm_pseudo_tty."& ".gdbStartCmd
+            let gdbStartCmd = ["lcmenv",gdbStartCmd]
+        endif
+        return gdbStartCmd
+    elseif executable('sbgdb')
+        return ['sbgdb']
+    elseif exists('g:termdebugger')
+        return [g:termdebugger]
+    else
+        return ['gdb']
+    endif
+endfunction " }}}
+
 
 func! s:StartDebug_term(dict)
   let usetty = s:UseSeparateTTYForProgram()
@@ -358,17 +384,6 @@ func! s:StartDebug_term(dict)
     endif
   endif
 
-  " Create a hidden terminal window to communicate with gdb
-  let s:commjob = s:TermStart('NONE', {
-	\ 'term_name': 'gdb communication',
-	\ 'out_cb': function('s:CommOutput'),
-	\ 'hidden': 1
-	\ })
-  if empty(s:commjob)
-    echoerr 'Failed to open the communication terminal window'
-    exe 'bwipe! ' . s:ptyjob['buffer']
-    return
-  endif
   " Open a terminal window to run the debugger.
   " Add -quiet to avoid the intro message causing a hit-enter prompt.
   let gdb_args = get(a:dict, 'gdb_args', [])
@@ -380,7 +395,6 @@ func! s:StartDebug_term(dict)
   else
     let cmd = [g:termdebugger, '-quiet'] + gdb_args
   endif
-
   " call ch_log('executing "' . join(cmd) . '"')
   let s:foundGdbPrompt = 0
   let s:gdbjob = s:TermStart(cmd, {
@@ -446,6 +460,25 @@ func! s:TermGetLine(job, lnum)
   endif
 endfunction
 
+func! StartCommJob()
+  if RequiresRemote()
+      let commjobcmd="telnet ".s:lcm_machine." ".s:lcm_portnumber." "
+  else
+      let commjobcmd='NONE'
+  endif
+  " Create a hidden terminal window to communicate with gdb
+  let s:commjob = s:TermStart(commjobcmd, {
+	\ 'term_name': 'gdb communication',
+	\ 'term_finish': 'close',
+	\ 'out_cb': function('s:CommOutput'),
+	\ 'hidden': 1,
+	\ })
+  if empty(s:commjob)
+    echoerr 'Failed to open the communication terminal window'
+    exe 'bwipe! ' . s:ptyjob['buffer']
+  endif
+endfunc
+
 func! s:StartDebug_term_step2(dict)
   " Connect gdb to the communication pty, using the GDB/MI interface
   call s:Debug('getting to s:StartDebug_term_step2')
@@ -455,9 +488,17 @@ func! s:StartDebug_term_step2(dict)
   if len(proc_args)
     call s:TermSendKeys(s:gdbjob, 'set args ' . join(proc_args) . "\r")
   endif
-
-  call s:TermSendKeys(s:gdbjob, 'new-ui mi ' . s:commjob['pty'] . "\r")
-
+  call StartCommJob()
+  if RequiresRemote()
+      let gdbcommjobtty = s:lcm_pseudo_tty
+  else
+      let gdbcommjobtty = s:commjob['pty']
+  endif
+  if RequiresRemote()
+      " new-ui command needs telnet from commjob to be ready.
+      sleep 100m
+  endif
+  call s:TermSendKeys(s:gdbjob,'new-ui mi '.gdbcommjobtty."\r")
   " Wait for the response to show up, users may not notice the error and wonder
   " why the debugger doesn't work.
   let try_count = 0
@@ -514,6 +555,7 @@ func! s:StartDebug_term_step2(dict)
 
   call s:StartDebugCommon(a:dict)
 endfunc
+
 
 func! s:StartDebug_prompt(dict)
   " Open a window with a prompt buffer to run gdb in.
@@ -916,10 +958,15 @@ func! s:LoadSharedLibraryContainingFile(filePath)
     call s:SendCommand('sb-auto-load-libs '.dllname)
     echo 'GDB finished loading debug symbols for '.dllname.'. Breakpoint turns red when and if MATLAB loads '.dllname.'.'
 endfunc
-
 " Handle a message received from gdb on the GDB/MI interface.
 func! s:CommOutput(chan, msg)
-  let msgs = split(a:msg, "\r", v:true)
+  let msgs = a:msg
+  let lastMessageIndex = -2
+  if RequiresRemote()
+      let msgs = substitute(a:msg, '\^M\^J',"\r",'g')
+      let lastMessageIndex = -1
+  endif
+  let msgs = split(msgs, "\r", v:true)
   " This rigamarole with pendingOutput is to account for truncated lines.
   " We occassionally get a single GDB message split across multiple calls
   " to on_stdout. Therefore, keep pending messages around untile we get a
@@ -927,10 +974,9 @@ func! s:CommOutput(chan, msg)
   let msgs[0] = s:pendingOutput . msgs[0]
   let s:pendingOutput = msgs[-1]
   let pendingBreakpointInfoOutputPatternString = "breakpoint     keep y   <PENDING>  "
-
   " Do not process the last line of the message (hence the 0:-2). This
   " prevents us from processing incomplete lines.
-  for msg in msgs[0:-2]
+  for msg in msgs[0:lastMessageIndex]
 
     let msg = trim(msg)
     if msg == ''
@@ -1378,6 +1424,9 @@ endfunc
 function! s:IssueGenericStackListCmd(gdbcmd, stacktype)
   call s:SendCommand('echo --start--stack--'.a:stacktype)
   call s:SendCommand(a:gdbcmd)
+  if RequiresRemote()
+      sleep 100m
+  endif
   call s:SendCommand('echo --end--stack--'.a:stacktype)
 endfunction " }}}
 
@@ -1612,6 +1661,12 @@ function! s:UpdateStackWindow(lines)
 endfunction " }}}
 
 func! s:HandleMOrHybridStackInfo()
+    let g:pdebug1=s:hybrid_stack
+    if s:hybrid_stack =~ '^#'
+        "we have pre 2023a mstack format
+        let s:hybrid_stack = ' '.substitute(s:hybrid_stack, '\\n#','\\n #','g')
+    endif
+    let g:pdebug2=s:hybrid_stack
   let lines = split(s:hybrid_stack, '\\n')
   keepalt call s:UpdateStackWindow(lines)
 
@@ -2075,6 +2130,21 @@ endfunc
 function! TermDebugSendCommandToComm(cmd)
   call s:SendCommand(a:cmd)
 endfunction " }}}
+
+function! RequiresRemote()
+    if empty(s:lcm_version)
+        let mw_anchor_loc = findfile('mw_anchor', '.;')
+        let s:lcm_version = split(readfile(mw_anchor_loc,'b')[0],'=')[1]
+        let s:lcm_machine = trim(system('getlcmenvinfo'))
+    endif
+    " todo ppatil : which network sandboxes to run on remote? 
+    " Gdb->RunOnServer option: use already leased or lease new  
+    return s:lcm_version =~ '2018b' || s:lcm_version =~ '2019' || s:lcm_version =~ '2020' || s:lcm_version =~ '2021' || s:lcm_version =~ '2022a'
+endfunction
+
+function! RunOnleasedCmd(userCmd)
+   return "lcmenv ".a:userCmd 
+endfunction
 
 let &cpo = s:keepcpo
 unlet s:keepcpo
