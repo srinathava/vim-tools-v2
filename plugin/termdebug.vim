@@ -55,9 +55,7 @@ call s:InitDebugLogging()
 " Need either the +terminal feature or +channel and the prompt buffer.
 " The terminal feature does not work with gdb on win32.
 if (has('nvim') || has('terminal')) && !has('win32')
-  let s:way = 'terminal'
-elseif has('channel') && exists('*prompt_setprompt')
-  let s:way = 'prompt'
+    let s:way = 'terminal'
 else
   if has('terminal')
     let s:err = 'Cannot debug, missing prompt buffer support'
@@ -212,20 +210,10 @@ func! s:StartDebug_internal(dict)
     let s:vertical = 0
   endif
 
-  " Override using a terminal window by setting g:termdebug_use_prompt to 1.
-  let use_prompt = exists('g:termdebug_use_prompt') && g:termdebug_use_prompt
-  if (has('nvim') || has('terminal')) && !has('win32') && !use_prompt
-    let s:way = 'terminal'
-  else
-    let s:way = 'prompt'
-  endif
+  let s:way = 'terminal'
 
   call s:Debug('starting using '.s:way)
-  if s:way == 'prompt'
-    call s:StartDebug_prompt(a:dict)
-  else
-    call s:StartDebug_term(a:dict)
-  endif
+  call s:StartDebug_term(a:dict)
 
   if exists('g:termdebug_disasm_window')
     if g:termdebug_disasm_window
@@ -252,9 +240,6 @@ func! s:CloseBuffers()
   unlet! s:gdbwin
 endfunc
 
-func! s:UseSeparateTTYForProgram()
-  return !exists('g:termdebug_separate_tty') || g:termdebug_separate_tty
-endfunc
 
 function! s:TermSendKeys(job, str)
   if has('nvim')
@@ -339,7 +324,7 @@ endfunction
 
 " TermDebugGdbCmd: return full gdb command {{{
 " Description: 
-function! TermDebugGdbCmd(pty)
+function! TermDebugGdbCmd()
     let mw_anchor_loc = findfile('mw_anchor', '.;')
     if mw_anchor_loc != ''
         let sbroot = fnamemodify(mw_anchor_loc, ':h')
@@ -361,19 +346,6 @@ endfunction " }}}
 
 
 func! s:StartDebug_term(dict)
-  let usetty = s:UseSeparateTTYForProgram()
-  let pty = ''
-  if usetty
-    " Open a terminal window without a job, to run the debugged program in.
-    let s:ptyjob = s:TermStart('NONE', {
-	  \ 'term_name': 'debugged program', 
-	  \ 'vertical': s:vertical
-	  \ })
-    if empty(s:ptyjob)
-      echoerr 'invalid argument (or job table is full) while opening terminal window'
-      return
-    endif
-  endif
   if s:vertical
     " Assuming the source code window will get a signcolumn, use two more
     " columns for that, thus one less for the terminal window.
@@ -388,14 +360,7 @@ func! s:StartDebug_term(dict)
   " Add -quiet to avoid the intro message causing a hit-enter prompt.
   let gdb_args = get(a:dict, 'gdb_args', [])
 
-  if exists('*TermDebugGdbCmd')
-    let cmd = TermDebugGdbCmd(pty)
-  elseif usetty
-    let cmd = [g:termdebugger, '-quiet', '-tty', pty] + gdb_args
-  else
-    let cmd = [g:termdebugger, '-quiet'] + gdb_args
-  endif
-  " call ch_log('executing "' . join(cmd) . '"')
+  let cmd = TermDebugGdbCmd()
   let s:foundGdbPrompt = 0
   let s:gdbjob = s:TermStart(cmd, {
 	\ 'term_name': 'GDB',
@@ -557,103 +522,6 @@ func! s:StartDebug_term_step2(dict)
 endfunc
 
 
-func! s:StartDebug_prompt(dict)
-  " Open a window with a prompt buffer to run gdb in.
-  if s:vertical
-    vertical new
-  else
-    new
-  endif
-  let s:gdbwin = win_getid(winnr())
-  let s:promptbuf = bufnr('')
-  call prompt_setprompt(s:promptbuf, 'gdb> ')
-  set buftype=prompt
-  file gdb
-  call prompt_setcallback(s:promptbuf, function('s:PromptCallback'))
-  call prompt_setinterrupt(s:promptbuf, function('s:PromptInterrupt'))
-
-  if s:vertical
-    " Assuming the source code window will get a signcolumn, use two more
-    " columns for that, thus one less for the terminal window.
-    exe (&columns / 2 - 1) . "wincmd |"
-  endif
-
-  " Add -quiet to avoid the intro message causing a hit-enter prompt.
-  let gdb_args = get(a:dict, 'gdb_args', [])
-  let proc_args = get(a:dict, 'proc_args', [])
-
-  let cmd = [g:termdebugger, '-quiet', '--interpreter=mi2'] + gdb_args
-  " call ch_log('executing "' . join(cmd) . '"')
-
-  let s:gdbjob = job_start(cmd, {
-	\ 'exit_cb': function('s:EndPromptDebug'),
-	\ 'out_cb': function('s:GdbOutCallback'),
-	\ })
-  if job_status(s:gdbjob) != "run"
-    echoerr 'Failed to start gdb'
-    exe 'bwipe! ' . s:promptbuf
-    return
-  endif
-  " Mark the buffer modified so that it's not easy to close.
-  set modified
-  let s:gdb_channel = job_getchannel(s:gdbjob)  
-
-  " Interpret commands while the target is running.  This should usually only
-  " be exec-interrupt, since many commands don't work properly while the
-  " target is running.
-  call s:SendCommand('-gdb-set mi-async on')
-  " Older gdb uses a different command.
-  call s:SendCommand('-gdb-set target-async on')
-
-  let s:ptybuf = 0
-  if has('win32')
-    " MS-Windows: run in a new console window for maximum compatibility
-    call s:SendCommand('set new-console on')
-  elseif has('terminal') && s:UseSeparateTTYForProgram()
-    " Unix: Run the debugged program in a terminal window.  Open it below the
-    " gdb window.
-    belowright let s:ptybuf = term_start('NONE', {
-	  \ 'term_name': 'debugged program',
-	  \ })
-    if s:ptybuf == 0
-      echoerr 'Failed to open the program terminal window'
-      call job_stop(s:gdbjob)
-      return
-    endif
-    let s:ptywin = win_getid(winnr())
-    let pty = job_info(term_getjob(s:ptybuf))['tty_out']
-    call s:SendCommand('tty ' . pty)
-
-    " Since GDB runs in a prompt window, the environment has not been set to
-    " match a terminal window, need to do that now.
-    call s:SendCommand('set env TERM = xterm-color')
-    call s:SendCommand('set env ROWS = ' . winheight(s:ptywin))
-    call s:SendCommand('set env LINES = ' . winheight(s:ptywin))
-    call s:SendCommand('set env COLUMNS = ' . winwidth(s:ptywin))
-    call s:SendCommand('set env COLORS = ' . &t_Co)
-    call s:SendCommand('set env VIM_TERMINAL = ' . v:version)
-  else
-    " TODO: open a new terminal get get the tty name, pass on to gdb
-    call s:SendCommand('show inferior-tty')
-  endif
-  call s:SendCommand('set print pretty on')
-  call s:SendCommand('set breakpoint pending on')
-  " Disable pagination, it causes everything to stop at the gdb
-  call s:SendCommand('set pagination off')
-
-  " Set arguments to be run
-  if len(proc_args)
-    call s:SendCommand('set args ' . join(proc_args))
-  endif
-
-  call s:StartDebugCommon(a:dict)
-
-  if has('nvim')
-    " nvim starts terminal in 'normal' mode. just doing startinsert does
-    " not work unless we also navigate to the last line of the buffer!
-    normal! Ga
-  endif
-endfunc
 
 func! s:StartDebugCommon(dict)
   " Sign used to highlight the line where the program has stopped.
@@ -720,23 +588,15 @@ endfunc
 " Send a command to gdb.  "cmd" is the string without line terminator.
 func! s:SendCommand(cmd)
   " call ch_log('sending to gdb: ' . a:cmd)
-  if s:way == 'prompt'
-    call ch_sendraw(s:gdb_channel, a:cmd . "\n")
-  else
-    call s:TermSendKeys(s:commjob, a:cmd . "\r")
-  endif
+  call s:TermSendKeys(s:commjob, a:cmd . "\r")
 endfunc
 
 " This is global so that a user can create their mappings with this.
 " Note: If the program is running when this command is called, it
 " interrupts the program
 func! TermDebugSendCommand(cmd)
-  if s:way == 'prompt'
-    call ch_sendraw(s:gdb_channel, a:cmd . "\n")
-  else
     call s:InterruptInferior()
     call s:TermSendKeys(s:gdbjob, a:cmd . "\r")
-  endif
 endfunc
 
 " Function called when entering a line in the prompt buffer.
@@ -1086,11 +946,7 @@ func! s:FinishWrapper()
 endfunc
 
 func! s:ContinueWrapper()
-    if s:way == 'prompt'
-        call s:GDBDebuggerCommandWrapper('-exec-continue','dbcont')
-    else
-        call s:GDBDebuggerCommandWrapperForTerm('continue','dbcont')
-    endif
+    call s:GDBDebuggerCommandWrapperForTerm('continue','dbcont')
 endfunc
 
 " Install commands in the current window to control the debugger.
@@ -1237,11 +1093,7 @@ endfunc
 func! s:InterruptInferior()
   if !s:stopped
     let do_continue = 1
-    if s:way == 'prompt'
-      call s:PromptInterrupt()
-    else
-      call s:SendCommand('-exec-interrupt')
-    endif
+    call s:SendCommand('-exec-interrupt')
     sleep 10m
   endif
 endfunc
@@ -1661,12 +1513,10 @@ function! s:UpdateStackWindow(lines)
 endfunction " }}}
 
 func! s:HandleMOrHybridStackInfo()
-    let g:pdebug1=s:hybrid_stack
     if s:hybrid_stack =~ '^#'
         "we have pre 2023a mstack format
         let s:hybrid_stack = ' '.substitute(s:hybrid_stack, '\\n#','\\n #','g')
     endif
-    let g:pdebug2=s:hybrid_stack
   let lines = split(s:hybrid_stack, '\\n')
   keepalt call s:UpdateStackWindow(lines)
 
