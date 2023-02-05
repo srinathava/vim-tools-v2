@@ -327,8 +327,8 @@ endfunction
 function! TermDebugGdbCmd()
     let mw_anchor_loc = findfile('mw_anchor', '.;')
     if mw_anchor_loc != ''
-        let sbroot = fnamemodify(mw_anchor_loc, ':h')
-        let gdbStartCmd = 'sb -s '.sbroot.' -debug -no-debug-backing-stores -gdb-switches -quiet'
+        let sbrootDir = mw#utils#GetRootDir()
+        let gdbStartCmd = 'sb -s '.sbrootDir.' -debug -no-debug-backing-stores -gdb-switches -quiet'
         if RequiresRemote()
             let gdbStartCmd = gdbStartCmd.' -gdb-switches -nx -gdb-switches -x=/mathworks/devel/sandbox/ebalai/sftools/gdb/.gdbinit_remote'
             let gdbStartCmd = "socat tcp-l:".s:lcm_portnumber.",reuseaddr pty,raw,link=".s:lcm_pseudo_tty."& ".gdbStartCmd
