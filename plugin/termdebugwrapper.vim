@@ -82,8 +82,13 @@ endfunction
 
 function! s:TermdebugAttach(pid, method)
     let pid = a:pid
+    if RequiresRemote()
+        let attachMessage = "Running on server. Enter PID of process started by \"runonserver mw matlab\" :"
+    else
+        let attachMessage = 'Enter the PID or process name to attach to :'
+    endif
     if pid == ''
-        let input = input('Enter the PID or process name to attach to :')
+        let input = input(attachMessage)
     else
         let input = pid
     endif

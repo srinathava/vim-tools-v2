@@ -50,6 +50,10 @@ function! mw#gdb#StartMATLAB(attach, mode)
 
     let pid = pyxeval('startMatlab(r""" '.a:mode.' """)')
 
+    if RequiresRemote()
+        echomsg "starting remote MATLAB; Use feature('getpid') in MATLAB to get pid to attach"
+        return
+    end
     if pid == 0
         echohl Search
         echomsg 'Cannot find MATLAB process for some reason...'

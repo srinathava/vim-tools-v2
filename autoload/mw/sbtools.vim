@@ -460,7 +460,7 @@ function! s:CompileCommon(makeprg)
     let cmd = a:makeprg 
 
     if RequiresRemote()
-        let cmd = RunOnleasedCmd(a:makeprg)
+        let cmd = RunOnServerCmd(a:makeprg)
     endif
 
     if !has('nvim')

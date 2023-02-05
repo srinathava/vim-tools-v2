@@ -332,7 +332,7 @@ function! TermDebugGdbCmd()
         if RequiresRemote()
             let gdbStartCmd = gdbStartCmd.' -gdb-switches -nx -gdb-switches -x=/mathworks/devel/sandbox/ebalai/sftools/gdb/.gdbinit_remote'
             let gdbStartCmd = "socat tcp-l:".s:lcm_portnumber.",reuseaddr pty,raw,link=".s:lcm_pseudo_tty."& ".gdbStartCmd
-            let gdbStartCmd = ["lcmenv",gdbStartCmd]
+            let gdbStartCmd = [trim(RunOnServerCmd('')),gdbStartCmd]
         endif
         return gdbStartCmd
     elseif executable('sbgdb')
@@ -1982,18 +1982,19 @@ function! TermDebugSendCommandToComm(cmd)
 endfunction " }}}
 
 function! RequiresRemote()
-    if empty(s:lcm_version)
+    if $RUNONSERVER != 1
+        return 0
+    endif
+    if empty(s:lcm_version) 
         let mw_anchor_loc = findfile('mw_anchor', '.;')
         let s:lcm_version = split(readfile(mw_anchor_loc,'b')[0],'=')[1]
-        let s:lcm_machine = trim(system('getlcmenvinfo'))
+        let s:lcm_machine = trim(system('getserverinfo'))
     endif
-    " todo ppatil : which network sandboxes to run on remote? 
-    " Gdb->RunOnServer option: use already leased or lease new  
-    return s:lcm_version =~ '2018b' || s:lcm_version =~ '2019' || s:lcm_version =~ '2020' || s:lcm_version =~ '2021' || s:lcm_version =~ '2022a'
+    return 1 
 endfunction
 
-function! RunOnleasedCmd(userCmd)
-   return "lcmenv ".a:userCmd 
+function! RunOnServerCmd(userCmd)
+   return "runonserver ".a:userCmd 
 endfunction
 
 let &cpo = s:keepcpo
