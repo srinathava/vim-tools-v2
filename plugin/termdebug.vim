@@ -1993,6 +1993,49 @@ function! RequiresRemote()
     return 1 
 endfunction
 
+function! GetTitleString()
+    "titlestring format: filenameWithoutDirectoryPath [-+=] dirNameRelativeToSbroot : sbsName : hostNameIfRemote
+    let modifierstatus = ''
+    if &modifiable == 0
+        let modifierstatus = '-'
+    elseif &readonly == 1 && empty(getbufinfo('%')) == 0 && getbufinfo('%')[0].changed == 1
+        let modifierstatus = '=+'
+    elseif &readonly == 1
+        let modifierstatus = '='
+    elseif empty(getbufinfo('%')) == 0 && getbufinfo('%')[0].changed == 1
+        let modifierstatus = '+'
+    endif
+
+    if !empty(modifierstatus)
+        let modifierstatus = '['.modifierstatus.']'
+    endif
+    let mw_anchor_loc = findfile('mw_anchor', '.;')
+    let fileName = expand('%:t')
+    let dirName = expand('%:p:h')
+    if mw_anchor_loc != ''
+        let sbrootDir = mw#utils#GetRootDir().'/'
+        let sbsName = split(sbrootDir,'/')[-1]
+        let dirNameRelativeToSbroot = substitute(dirName,sbrootDir,'','g')
+        let machineInfo = ''
+        if empty(s:lcm_machine) == 0
+            let machineInfo = ' : '. s:lcm_machine
+        endif
+        return fileName.' '.modifierstatus.' : '.dirNameRelativeToSbroot.' : '.sbsName.machineInfo
+    else
+        return fileName.' '.modifierstatus.' ('.dirName.')'
+    endif
+endfunction
+
+
+if empty(&titlestring)
+    call RequiresRemote()
+    " todo ppatil: remove below if condition to set this custom status for
+    " non-remote sessions as well
+    if empty(s:lcm_machine) == 0
+        set titlestring=%{GetTitleString()}
+    endif
+endif
+
 function! RunOnServerCmd(userCmd)
    return "runonserver ".a:userCmd 
 endfunction
