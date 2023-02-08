@@ -36,14 +36,14 @@ local function gen_from_commands(_)
   end
 end
 
-local function command_picker(opts, results)
+local function command_picker(opts, title, results)
   opts = opts or require("telescope.themes").get_dropdown{
     layout_config = {
       height=math.min(40, #results + 4)
     }
   }
   pickers.new(opts, {
-    prompt_title = "colors",
+    prompt_title = title,
     finder = finders.new_table {
           results = results,
           entry_maker = gen_from_commands(),
@@ -53,7 +53,10 @@ local function command_picker(opts, results)
           actions.select_default:replace(function()
             actions.close(prompt_bufnr)
             local selection = action_state.get_selected_entry()
-            vim.cmd(selection.entry.cmd)
+            -- using vim.schedule avoids https://github.com/nvim-telescope/telescope.nvim/issues/2257
+            vim.schedule(function()
+              vim.cmd(selection.entry.cmd)
+            end)
           end)
           return true
         end,
@@ -61,7 +64,7 @@ local function command_picker(opts, results)
 end
 
 pickers.commands = function(opts)
-  command_picker(opts, {
+  command_picker(opts, "MathWorks", {
     {shortcut="fp", cmd="MWFindInProject", description="Find in project"},
     {shortcut="fs", cmd="MWFindInSolution", description="Find in solution"},
     {shortcut="cp", cmd="MWCompileProject", description="sbmake module"},
@@ -85,7 +88,7 @@ pickers.commands = function(opts)
 end
 
 pickers.gdb = function(opts)
-  command_picker(opts, {
+  command_picker(opts, "Gdb", {
     {shortcut="",  cmd="Termdebug", description="Start Gdb"},
     {shortcut="",  cmd="ShowGdb", description="Show Command Window"},
     {shortcut="s", cmd="Step", description="Step Into <F11>"},
@@ -109,16 +112,29 @@ end
 
 pickers.files = function()
   local projdir = vim.fn['mw#utils#GetRootDir']()
-  local opts = {}
+  local opts = {
+    layout_strategy = 'vertical',
+    layout_config = { width = 0.8 },
+    path_display = "shorten"
+  }
 
   if string.len(projdir) > 0 then
-    opts = {cwd=projdir}
+    opts = vim.fn.extend(opts, { cwd = projdir })
     local insideSb = vim.fn.filereadable(projdir .. '/mw_anchor')
     if insideSb then
-      opts = vim.fn.extend(opts, {find_command={'listFiles.py'}})
+      opts = vim.fn.extend(opts, { find_command = { 'listFiles.py' } })
     end
   end
+
   return require('telescope.builtin').find_files(opts)
+end
+
+pickers.buffers = function()
+  return require('telescope.builtin').buffers({
+    layout_strategy = 'vertical',
+    layout_config = { width = 0.8 },
+    sort_mru = true
+  })
 end
 
 return pickers

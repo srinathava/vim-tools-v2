@@ -56,6 +56,7 @@ augroup filetype
         au BufNewFile,BufRead *.tlc                     setf tlc
         au BufNewFile,BufRead *.rtw                     setf rtw
         au BufNewFile,BufRead *.cdr                     setf matlab
+        au BufNewFile,BufRead *.zml                     setf zml
 augroup END
 
 
@@ -121,6 +122,7 @@ amenu &Mathworks.Open\ Co&verage\ Repor         :MWOpenCoverageReport<CR>
 if has('nvim')
     nnoremap <A-m> :lua require('mw.telescope').commands()<CR>
     nnoremap <A-g> :lua require('mw.telescope').gdb()<CR>
+    nnoremap <F3> :lua require('mw.telescope').buffers({ sort_lastused = true, sort_mru = true })<CR>
 endif
 
 " vim: fdm=marker

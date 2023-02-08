@@ -10,8 +10,10 @@ set shell=bash " needed by DiffSubmitFile
 
 com! -nargs=0 CD :exec 'cd '.expand('%:p:h')
 
-map <F3> <Plug>StartBufExplorer
-map <S-F3> <Plug>SplitBufExplorer
+if !has('nvim')
+    map <F3> <Plug>StartBufExplorer
+    map <S-F3> <Plug>SplitBufExplorer
+endif
 
 set diffexpr=MyDiff()
 function! MyDiff()

@@ -376,29 +376,58 @@ function! mw#sbtools#GetCurrentProjDir()
     return projDir
 endfunction
 " }}}
-" s:HandleBuildResults:  {{{
-" Description: 
-function! s:HandleBuildResults(status)
-    if !has('nvim')
-        let &termwinsize = s:old_termwinsize
+" s:HandleBuildResults_Nvim: {{{
+let s:make_output_loc = "/tmp/vim_make_".$USER.".log"
+function! s:HandleBuildResults_Nvim()
+    let fileContents = join(readfile(s:make_output_loc), "\n")
+    if fileContents !~? 'error'
+        return v:false
     endif
 
-    " remote compilation does not return status hence we always need to
-    " process results for adding links
+    exec "cgetfile ".s:make_output_loc
+
+    exec "bdelete ".s:term_buf
+
+    return v:true
+endfunction " }}}
+" s:HandleBuildResults_Vim:  {{{
+function! s:HandleBuildResults_Vim(status)
+    let &termwinsize = s:old_termwinsize
+    nnoremap <buffer> q :quit<CR>
+
     if a:status == 0 && !RequiresRemote()
-        return
+        return v:false
     endif
 
+    exec 'cgetbuffer '.s:term_buf
+
+    exec "bdelete ".s:term_buf
+
+    return v:true
+endfunction " }}}
+" s:HandleBuildResults:  {{{
+function! s:HandleBuildResults(status)
+    " Remember where we are when build is finished.
     let curpos = getcurpos()
     let curbuf = bufnr('%')
 
-    exec 'cgetbuffer '.s:term_buf
-    cwindow
+    if has('nvim')
+        let hasErrs = s:HandleBuildResults_Nvim()
+    else
+        let hasErrs = s:HandleBuildResults_Vim(a:status)
+    endif
 
-    exec 'bdelete '.s:term_buf
+    if !hasErrs
+        return
+    endif
+
+    cwindow
     silent! crewind
     silent! cnext
 
+    " If we are actively editing some file waiting for the build to finish,
+    " this takes us back to where we were instead of making us jump
+    " suddenly to the first compile error.
     if s:term_buf != curbuf
         exec bufwinnr(curbuf).' wincmd w'
         call setpos('.', curpos)
@@ -406,48 +435,12 @@ function! s:HandleBuildResults(status)
 
     redraw!
 endfunction " }}}
-" s:ParseBuildResults: {{{
-function s:ParseBuildResults(job, status, ...)
+" s:Vim_OnExit: {{{
+function s:Vim_OnExit(job, status, ...)
     call timer_start(500, {timer -> s:HandleBuildResults(a:status)})
-endfunction " }}}
-" s:AppendBufLine: {{{
-function! s:AppendBufLine(bufnum, lines)
-    " Remove all ANSI escape codes
-    let lines = map(a:lines, {_, s -> substitute(s, '\(\%x1b\[[0-9;]*[mGKHF]\)\|\(\)', '', 'g')})
-
-    let lnum = getbufinfo(a:bufnum)[0]['linecount']
-    call appendbufline(a:bufnum, lnum, lines)
-
-    let lnum = getbufinfo(a:bufnum)[0]['linecount']
-    let winid = bufwinid(a:bufnum)
-    if winid > 0
-        " Can happen if the user closed the scratch buffer after starting
-        " compile.
-        call nvim_win_set_cursor(winid, [lnum, 0])
-    endif
-endfunction
-" }}}
-" s:Nvim_OnOutput: handle nvim job output {{{
-function! s:Nvim_OnOutput(chanId, data, name)
-    if a:data[0] == ''
-        return
-    endif
-
-    let a:data[0] = s:nvim_partial_data . a:data[0]
-    let lines = a:data[0:-2]
-    let s:nvim_partial_data = a:data[-1]
-
-    call s:AppendBufLine(s:term_buf, lines)
 endfunction " }}}
 " s:Nvim_OnExit: {{{
 function! s:Nvim_OnExit(jobId, exitCode, eventType)
-    call s:AppendBufLine(s:term_buf, [s:nvim_partial_data])
-    if a:exitCode == 0
-        call s:AppendBufLine(s:term_buf, ["*** Build passed! ***"])
-    else
-        call s:AppendBufLine(s:term_buf, ["*** Build failed! ***"])
-    endif
-
     call s:HandleBuildResults(a:exitCode)
 endfunction " }}}
 " s:CompileCommon:  {{{
@@ -457,20 +450,25 @@ function! s:CompileCommon(makeprg)
     let cdPath = s:GetModulePath()
     cclose
     exec 'silent! bdelete '.s:term_buf
-    let cmd = a:makeprg 
+    let makeprg = a:makeprg 
 
     if RequiresRemote()
-        let cmd = RunOnServerCmd(a:makeprg)
+        let makeprg = RunOnServerCmd(a:makeprg)
     endif
 
     if !has('nvim')
         let s:old_termwinsize = &termwinsize
+
+        " Vim allows us to set an arbitrary large width for the terminal
+        " window avoiding problems with file names etc. getting broken
+        " across lines.
         let &termwinsize = '10*1000'
 
-        bot let s:term_buf = term_start(cmd, {
+        bot let s:term_buf = term_start(makeprg, {
                     \ "cwd": cdPath, 
                     \ "term_name": "sbmake term",
-                    \ "exit_cb": function('s:ParseBuildResults')})
+                    \ "term_highlight": "Normal",
+                    \ "exit_cb": function('s:Vim_OnExit')})
     else
         bot new
         resize 10
@@ -478,11 +476,16 @@ function! s:CompileCommon(makeprg)
         setlocal nowrap
         let s:term_buf = bufnr('%')
 
+        " Neovim wraps terminal lines, making parsing them error-prone if
+        " file-names are broken across multiple lines. Hence, we "tee" the
+        " output to a file which we can read later.
+        " Asking for better workarounds resulted in no luck:
+         "https://neovim.discourse.group/t/is-there-something-like-termwinsize-for-neovim-with-termopen/2617
+        let makeprg = makeprg . " 2>&1 | tee ".s:make_output_loc
+
         let s:nvim_partial_data = ''
-        let s:nvim_jobid = jobstart(cmd, {
-            \ 'on_stdout': function('s:Nvim_OnOutput'),
-            \ 'on_exit': function('s:Nvim_OnExit'),
-            \ 'pty': v:true,
+        let s:nvim_jobid = termopen(makeprg, {
+            \ 'on_exit': function('s:Nvim_OnExit')
             \ })
     endif
 endfunction " }}}

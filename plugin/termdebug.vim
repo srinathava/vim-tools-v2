@@ -250,7 +250,7 @@ function! s:TermSendKeys(job, str)
 endfunction
 
 function! s:DispatchToOutFcn(FuncRefObj, chan_id, msgs, name)
-  call a:FuncRefObj(a:chan_id, ''.join(a:msgs))
+  call a:FuncRefObj(a:chan_id, join(a:msgs, ''))
 endfunction
 
 function! s:DoNothing(...)
@@ -377,13 +377,13 @@ func! s:StartDebug_term(dict)
 endfunc
 
 func! s:MakeGDBCommandLineVisibleAndInTerminalMode(msg)
-    let curwinid = win_getid(winnr())
-    call win_gotoid(s:gdbwin)
-    let gdbwinmode= mode()
-    if gdbwinmode != 't'
-        normal! GA
-    endif
-    call win_gotoid(curwinid)
+  let curwinid = win_getid(winnr())
+  call win_gotoid(s:gdbwin)
+  let gdbwinmode= mode()
+  if gdbwinmode != 't'
+    normal! GA
+  endif
+  call win_gotoid(curwinid)
 endfunc
 
 func! s:OnGdbMainOutput(dict, chan, msg)
@@ -427,9 +427,9 @@ endfunction
 
 func! StartCommJob()
   if RequiresRemote()
-      let commjobcmd="telnet ".s:lcm_machine." ".s:lcm_portnumber." "
+    let commjobcmd="telnet ".s:lcm_machine." ".s:lcm_portnumber." "
   else
-      let commjobcmd='NONE'
+    let commjobcmd='NONE'
   endif
   " Create a hidden terminal window to communicate with gdb
   let s:commjob = s:TermStart(commjobcmd, {
@@ -456,13 +456,12 @@ func! s:StartDebug_term_step2(dict)
   call StartCommJob()
   if RequiresRemote()
       let gdbcommjobtty = s:lcm_pseudo_tty
+      " new-ui command needs telnet from commjob to be ready.
+      sleep 100m
   else
       let gdbcommjobtty = s:commjob['pty']
   endif
-  if RequiresRemote()
-      " new-ui command needs telnet from commjob to be ready.
-      sleep 100m
-  endif
+
   call s:TermSendKeys(s:gdbjob,'new-ui mi '.gdbcommjobtty."\r")
   " Wait for the response to show up, users may not notice the error and wonder
   " why the debugger doesn't work.
@@ -522,17 +521,13 @@ func! s:StartDebug_term_step2(dict)
 endfunc
 
 
-
 func! s:StartDebugCommon(dict)
   " Sign used to highlight the line where the program has stopped.
   " There can be only one.
   sign define debugPC linehl=debugPC
   hi debugPC cterm=reverse gui=reverse
 
-  " Install debugger commands in the text window.
-  call win_gotoid(s:sourcewin)
   call s:InstallCommands()
-  call win_gotoid(s:gdbwin)
 
   " Enable showing a balloon with eval info
   if has("balloon_eval") || has("balloon_eval_term")
@@ -581,9 +576,6 @@ func! s:StartDebugCommon(dict)
   doautocmd User TermDebugStarted
 
   let s:gdb_started = 1
-  if has('nvim')
-    normal! Ga
-  endif
 endfunc
 " Send a command to gdb.  "cmd" is the string without line terminator.
 func! s:SendCommand(cmd)
@@ -597,61 +589,6 @@ endfunc
 func! TermDebugSendCommand(cmd)
     call s:InterruptInferior()
     call s:TermSendKeys(s:gdbjob, a:cmd . "\r")
-endfunc
-
-" Function called when entering a line in the prompt buffer.
-func! s:PromptCallback(text)
-  call s:SendCommand(a:text)
-endfunc
-
-" Function called when pressing CTRL-C in the prompt buffer and when placing a
-" breakpoint.
-func! s:PromptInterrupt()
-  " call ch_log('Interrupting gdb')
-  if has('win32')
-    " Using job_stop() does not work on MS-Windows, need to send SIGTRAP to
-    " the debugger program so that gdb responds again.
-    if s:pid == 0
-      echoerr 'Cannot interrupt gdb, did not find a process ID'
-    else
-      call debugbreak(s:pid)
-    endif
-  else
-    call job_stop(s:gdbjob, 'int')
-  endif
-endfunc
-
-" Function called when gdb outputs text.
-func! s:GdbOutCallback(channel, text)
-  " call ch_log('received from gdb: ' . a:text)
-
-  " Drop the gdb prompt, we have our own.
-  " Drop status and echo'd commands.
-  if a:text == '(gdb) ' || a:text == '^done' || a:text[0] == '&'
-    return
-  endif
-  if a:text =~ '^^error,msg='
-    let text = s:DecodeMessage(a:text[11:])
-    if exists('s:evalexpr') && text =~ 'A syntax error in expression, near\|No symbol .* in current context'
-      " Silently drop evaluation errors.
-      unlet s:evalexpr
-      return
-    endif
-  elseif a:text[0] == '~'
-    let text = s:DecodeMessage(a:text[1:])
-  else
-    call s:CommOutput(a:channel, a:text)
-    return
-  endif
-
-  let curwinid = win_getid(winnr())
-  call win_gotoid(s:gdbwin)
-
-  " Add the output above the current prompt.
-  call append(line('$') - 1, text)
-  set modified
-
-  call win_gotoid(curwinid)
 endfunc
 
 " Decode a message from gdb.  quotedText starts with a ", return the text up
@@ -917,22 +854,25 @@ func! s:GotoProgram()
     call win_gotoid(s:ptywin)
   endif
 endfunc
+
 func! s:GDBDebuggerCommandWrapperForTerm(cDebugCommand, mDebugCommand)
-    if s:stoppedInMATLAB == v:true
-        let s:stoppedInMATLAB = v:false
-        call s:SendCommand(a:mDebugCommand)
-    else
-        call TermDebugSendCommand(a:cDebugCommand)
-    end
+  if s:stoppedInMATLAB == v:true
+    let s:stoppedInMATLAB = v:false
+    call s:SendCommand(a:mDebugCommand)
+  else
+    call TermDebugSendCommand(a:cDebugCommand)
+  endif
 endfunc
+
 func! s:GDBDebuggerCommandWrapper(cDebugCommand, mDebugCommand)
-    if s:stoppedInMATLAB == v:true
-        let s:stoppedInMATLAB = v:false
-        call s:SendCommand(a:mDebugCommand)
-    else
-        call s:SendCommand(a:cDebugCommand)
-    end
+  if s:stoppedInMATLAB == v:true
+    let s:stoppedInMATLAB = v:false
+    call s:SendCommand(a:mDebugCommand)
+  else
+    call s:SendCommand(a:cDebugCommand)
+  endif
 endfunc
+
 func! s:StepWrapper()
     call s:GDBDebuggerCommandWrapper('-exec-step','dbstepin')
 endfunc
@@ -942,7 +882,7 @@ func! s:OverWrapper()
 endfunc
 
 func! s:FinishWrapper()
-    call s:GDBDebuggerCommandWrapper('-exec-finish','dbstepout')
+    call s:GDBDebuggerCommandWrapperForTerm('finish','dbstepout')
 endfunc
 
 func! s:ContinueWrapper()
@@ -1408,6 +1348,7 @@ func! s:UpdateFramePtr(level)
   exec 'keeppatterns silent! % s/^ \ze#'.a:level.' .*'.marker.'/>/e'
   call win_gotoid(curwin)
 endfunction
+
 func! s:handleMCStackSwitching(msg)
     let fname = s:GetFullname(a:msg)
     let fcnname = s:GetMiValue(a:msg, 'func')
@@ -1628,7 +1569,6 @@ func! s:HandleError(msg)
     let s:evalFromBalloonExpr = 0
     return
   endif
-  echoerr substitute(a:msg, '.*msg="\(.*\)"', '\1', '')
 endfunc
 
 func! s:GotoSourcewinOrCreateIt()

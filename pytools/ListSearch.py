@@ -3,7 +3,6 @@
 from getProjSettings import getProjSettings
 from sbtools import getRootDir
 import os
-from os import path
 from threading import Thread
 from subprocess import Popen, PIPE
 import sys

@@ -168,6 +168,8 @@ func! s:InstallMaps()
   call s:CreateMap('<F10>',   ':Over<CR>', 'n')
   call s:CreateMap('<F11>',   ':Step<CR>', 'n')
   call s:CreateMap('<S-F11>', ':Finish<CR>', 'n')
+  " Weirdly neovim sees <S-F11> as <F23> in the terminal
+  call s:CreateMap('<F23>',   ':Finish<CR>', 'n')
   call s:CreateMap('<F12>',   ':Finish<CR>', 'n')
   call s:CreateMap('U',       ':call TermDebugUpStack()<CR>', 'n')
   call s:CreateMap('D',       ':call TermDebugDownStack()<CR>', 'n')
