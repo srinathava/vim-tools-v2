@@ -254,7 +254,7 @@ function! TermDebugGdbCmd()
         let sbrootDir = mw#utils#GetRootDir()
         let gdbStartCmd = 'sb -s '.sbrootDir.' -debug -no-debug-backing-stores -gdb-switches -quiet'
         if mw#remote#Required()
-            let gdbStartCmd = "socat tcp-l:".s:lcm_portnumber.",reuseaddr pty,raw,link=".s:lcm_pseudo_tty."& ".gdbStartCmd
+            let gdbStartCmd = "socat tcp-l:".s:lcm_portnumber.",reuseaddr pty,rawer,link=".s:lcm_pseudo_tty."& ".gdbStartCmd
             let gdbStartCmd = mw#remote#Wrap(gdbStartCmd)
         endif
         return gdbStartCmd
@@ -346,6 +346,7 @@ func! StartCommJob()
 	\ 'out_cb': function('s:CommOutput'),
 	\ 'hidden': 1,
 	\ })
+
   if empty(s:commjob)
     echoerr 'Failed to open the communication terminal window'
     exe 'bwipe! ' . s:ptyjob['buffer']
@@ -370,7 +371,6 @@ func! s:StartDebug_term_step2(dict)
       let gdbcommjobtty = s:commjob['pty']
   endif
 
-  echomsg "sending new-ui mi command ".gdbcommjobtty
   call mw#term#SendKeys(s:gdbjob,'new-ui mi '.gdbcommjobtty."\r")
 
   " Interpret commands while the target is running.  This should usually only be
@@ -444,10 +444,16 @@ func! s:StartDebugCommon(dict)
 
   let s:gdb_started = 1
 endfunc
+
 " Send a command to gdb.  "cmd" is the string without line terminator.
 func! s:SendCommand(cmd)
-  " call ch_log('sending to gdb: ' . a:cmd)
   call mw#term#SendKeys(s:commjob, a:cmd . "\r")
+
+  " Without this sleep, remote debugging on a deb10 machine seems to pretty
+  " consistently crash.
+  if mw#remote#Required()
+    sleep 10m
+  endif
 endfunc
 
 " This is global so that a user can create their mappings with this.
@@ -627,14 +633,10 @@ endfunc
 func! s:CommOutput(chan, msg)
   let msgs = a:msg
   let lastMessageIndex = -2
-  if mw#remote#Required()
-      let msgs = substitute(a:msg, '\^M\^J',"\r",'g')
-      let lastMessageIndex = -1
-  endif
   let msgs = split(msgs, "\r", v:true)
   " This rigamarole with pendingOutput is to account for truncated lines.
   " We occassionally get a single GDB message split across multiple calls
-  " to on_stdout. Therefore, keep pending messages around untile we get a
+  " to on_stdout. Therefore, keep pending messages around until we get a
   " "\r" which indicates a message is complete.
   let msgs[0] = s:pendingOutput . msgs[0]
   let s:pendingOutput = msgs[-1]
@@ -1084,9 +1086,6 @@ endfunc
 function! s:IssueGenericStackListCmd(gdbcmd, stacktype)
   call s:SendCommand('echo --start--stack--'.a:stacktype)
   call s:SendCommand(a:gdbcmd)
-  if mw#remote#Required()
-      sleep 100m
-  endif
   call s:SendCommand('echo --end--stack--'.a:stacktype)
 endfunction " }}}
 
