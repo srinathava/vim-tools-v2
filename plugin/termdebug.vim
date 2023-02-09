@@ -241,85 +241,11 @@ func! s:CloseBuffers()
 endfunc
 
 
-function! s:TermSendKeys(job, str)
-  if has('nvim')
-    call chansend(a:job['jobid'], a:str)
-  else
-    call term_sendkeys(a:job['buffer'], a:str)
-  endif
-endfunction
-
 function! s:DispatchToOutFcn(FuncRefObj, chan_id, msgs, name)
   call a:FuncRefObj(a:chan_id, join(a:msgs, ''))
 endfunction
 
 function! s:DoNothing(...)
-endfunction
-
-" s:TermStart: nvim/vim compatible version for starting a new terminal
-" Description: 
-function! s:TermStart(cmd, opts)
-  let term_name = get(a:opts, 'term_name', '')
-  let vertical = get(a:opts, 'vertical', v:false)
-
-  " Stupid f*ing vim rules: funcref objects can only be stored in variables
-  " whose names start with capital letters!
-  let OutCB = get(a:opts, 'out_cb', function('s:DoNothing'))
-  let ExitCB = get(a:opts, 'exit_cb', function('s:DoNothing'))
-
-  let hidden = get(a:opts, 'hidden', v:false)
-  let term_finish = get(a:opts, 'term_finish', 'open')
-
-  if has('nvim')
-    if type(a:cmd) == v:t_string && a:cmd == 'NONE'
-      let cmd = 'tail -f /dev/null;#'.term_name
-    else
-      let cmd = a:cmd
-    endif
-
-    if hidden
-      let jobid = jobstart(cmd, {
-	    \ 'on_stdout': function('s:DispatchToOutFcn', [OutCB]),
-	    \ 'on_exit': ExitCB,
-	    \ 'pty': v:true,
-	    \ })
-    else
-      execute vertical ? 'vnew' : 'new'
-      let jobid = termopen(cmd, {
-	    \ 'on_stdout': function('s:DispatchToOutFcn', [OutCB]),
-	    \ 'on_exit': ExitCB,
-	    \ })
-    endif
-    if jobid <= 0
-      return {}
-    endif
-
-    let pty_job_info = nvim_get_chan_info(jobid)
-    let pty = pty_job_info['pty']
-    let ptybuf = get(pty_job_info, 'buffer', -1)
-  else
-    let ptybuf = term_start(a:cmd, {
-	  \ 'term_name': term_name,
-	  \ 'vertical': vertical,
-	  \ 'out_cb': OutCB,
-	  \ 'in_io': 'pipe',
-	  \ 'exit_cb': ExitCB,
-	  \ 'hidden': hidden,
-	  \ 'term_finish': term_finish,
-	  \ })
-    if ptybuf == 0
-      return {}
-    endif
-    let job = term_getjob(ptybuf)
-    let pty = job_info(job)['tty_out']
-    let jobid = -1
-    call setbufvar(ptybuf, '&buflisted', 0)
-  endif
-  return {
-	\ 'buffer': ptybuf,
-	\ 'pty': pty,
-	\ 'jobid': jobid
-	\ }
 endfunction
 
 " TermDebugGdbCmd: return full gdb command {{{
@@ -344,7 +270,6 @@ function! TermDebugGdbCmd()
     endif
 endfunction " }}}
 
-
 func! s:StartDebug_term(dict)
   if s:vertical
     " Assuming the source code window will get a signcolumn, use two more
@@ -362,7 +287,7 @@ func! s:StartDebug_term(dict)
 
   let cmd = TermDebugGdbCmd()
   let s:foundGdbPrompt = 0
-  let s:gdbjob = s:TermStart(cmd, {
+  let s:gdbjob = mw#term#Start(cmd, {
 	\ 'term_name': 'GDB',
 	\ 'term_finish': 'close',
 	\ 'out_cb': function('s:OnGdbMainOutput', [a:dict]),
@@ -400,7 +325,7 @@ func! s:OnGdbMainOutput(dict, chan, msg)
   " .gdbinit prints out a lot of messages and the Vim window is
   " sufficiently small.
   if a:msg =~ '--Type <RET> for more, q to quit, c to continue without paging--'
-    call s:TermSendKeys(s:gdbjob, "c\r")
+    call mw#term#SendKeys(s:gdbjob, "c\r")
   elseif a:msg =~ '(gdb)'
     let s:foundGdbPrompt = 1
     call s:StartDebug_term_step2(a:dict)
@@ -408,22 +333,8 @@ func! s:OnGdbMainOutput(dict, chan, msg)
 endfunc
 
 func! s:HasGdbProcessExited()
-  if has('nvim')
-    return nvim_get_chan_info(s:gdbjob['jobid']) == {}
-  else
-    let gdbproc = term_getjob(s:gdbjob['buffer'])
-    return gdbproc == v:null || job_status(gdbproc) !=# 'run'
-  endif
+  return mw#term#Exited(s:gdbjob)
 endfunc
-
-func! s:TermGetLine(job, lnum)
-  let bufid = a:job['buffer']
-  if has('nvim')
-    return get(getbufline(bufid, a:lnum), 0, '')
-  else
-    return term_getline(bufid, a:lnum)
-  endif
-endfunction
 
 func! StartCommJob()
   if RequiresRemote()
@@ -432,7 +343,7 @@ func! StartCommJob()
     let commjobcmd='NONE'
   endif
   " Create a hidden terminal window to communicate with gdb
-  let s:commjob = s:TermStart(commjobcmd, {
+  let s:commjob = mw#term#Start(commjobcmd, {
 	\ 'term_name': 'gdb communication',
 	\ 'term_finish': 'close',
 	\ 'out_cb': function('s:CommOutput'),
@@ -451,7 +362,7 @@ func! s:StartDebug_term_step2(dict)
   " Set arguments to be run
   let proc_args = get(a:dict, 'proc_args', [])
   if len(proc_args)
-    call s:TermSendKeys(s:gdbjob, 'set args ' . join(proc_args) . "\r")
+    call mw#term#SendKeys(s:gdbjob, 'set args ' . join(proc_args) . "\r")
   endif
   call StartCommJob()
   if RequiresRemote()
@@ -462,7 +373,7 @@ func! s:StartDebug_term_step2(dict)
       let gdbcommjobtty = s:commjob['pty']
   endif
 
-  call s:TermSendKeys(s:gdbjob,'new-ui mi '.gdbcommjobtty."\r")
+  call mw#term#SendKeys(s:gdbjob,'new-ui mi '.gdbcommjobtty."\r")
   " Wait for the response to show up, users may not notice the error and wonder
   " why the debugger doesn't work.
   let try_count = 0
@@ -475,8 +386,8 @@ func! s:StartDebug_term_step2(dict)
 
     let response = ''
     for lnum in range(1,200)
-      let line1 = s:TermGetLine(s:gdbjob, lnum)
-      let line2 = s:TermGetLine(s:gdbjob, lnum + 1)
+      let line1 = mw#term#GetLine(s:gdbjob, lnum)
+      let line2 = mw#term#GetLine(s:gdbjob, lnum + 1)
       if line1 =~ 'new-ui mi '
 	" response can be in the same line or the next line
 	let response = line1 . line2
@@ -580,7 +491,7 @@ endfunc
 " Send a command to gdb.  "cmd" is the string without line terminator.
 func! s:SendCommand(cmd)
   " call ch_log('sending to gdb: ' . a:cmd)
-  call s:TermSendKeys(s:commjob, a:cmd . "\r")
+  call mw#term#SendKeys(s:commjob, a:cmd . "\r")
 endfunc
 
 " This is global so that a user can create their mappings with this.
@@ -588,7 +499,7 @@ endfunc
 " interrupts the program
 func! TermDebugSendCommand(cmd)
     call s:InterruptInferior()
-    call s:TermSendKeys(s:gdbjob, a:cmd . "\r")
+    call mw#term#SendKeys(s:gdbjob, a:cmd . "\r")
 endfunc
 
 " Decode a message from gdb.  quotedText starts with a ", return the text up
@@ -716,7 +627,7 @@ func! TermDebugPrintHelper(isVisual)
     endif
     if s:current_frame_type == "M"
         let pmlCmd = "printf \"%s\", SF::EvaluateCmdAtMATLABStackLevel(".s:current_frame_idx.",\"".varName."\")"."\r"
-        call s:TermSendKeys(s:gdbjob, pmlCmd)
+        call mw#term#SendKeys(s:gdbjob, pmlCmd)
     else
         call TermDebugSendCommand("print ".varName)
     endif

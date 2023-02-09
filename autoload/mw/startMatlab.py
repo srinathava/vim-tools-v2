@@ -14,19 +14,17 @@ def startMatlab(extraArgs):
         useXterm = False
 
     runonserver = ''
-    runonserverEnvironmentVariableName = 'RUNONSERVER'
-    if runonserverEnvironmentVariableName in os.environ.keys() and os.environ[runonserverEnvironmentVariableName]=='1':
+    if os.environ.get('RUNONSERVER') == '1':
         runonserver = 'xterm -e runonserver '
-        useXterm = False  #no need for separate Xterm. runonserver already runs in xterm
+        useXterm = False  # no need for separate Xterm. runonserver already runs in xterm
 
     if useXterm:
-        pid = subprocess.Popen(runonserver+'xterm -e sb -skip-sb-startup-checks ' + extraArgs, shell=True).pid
+        pid = subprocess.Popen(runonserver + 'xterm -e sb -skip-sb-startup-checks ' + extraArgs, shell=True).pid
     else:
-        pid = subprocess.Popen(runonserver+'sb -skip-sb-startup-checks ' + extraArgs, shell=True).pid
+        pid = subprocess.Popen(runonserver + 'sb -skip-sb-startup-checks ' + extraArgs, shell=True).pid
 
     if runonserver:
         return 0
-
         
     # wait for the correct MATLAB process to be loaded.
     n = 0
@@ -44,4 +42,3 @@ def startMatlab(extraArgs):
 if __name__ == "__main__":
     pid = startMatlab(' '.join(sys.argv[1:]))
     print(pid)
-

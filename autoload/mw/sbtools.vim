@@ -376,50 +376,19 @@ function! mw#sbtools#GetCurrentProjDir()
     return projDir
 endfunction
 " }}}
-" s:HandleBuildResults_Nvim: {{{
-let s:make_output_loc = "/tmp/vim_make_".$USER.".log"
-function! s:HandleBuildResults_Nvim()
-    let fileContents = join(readfile(s:make_output_loc), "\n")
-    if fileContents !~? 'error'
-        return v:false
-    endif
-
-    exec "cgetfile ".s:make_output_loc
-
-    exec "bdelete ".s:term_buf
-
-    return v:true
-endfunction " }}}
-" s:HandleBuildResults_Vim:  {{{
-function! s:HandleBuildResults_Vim(status)
-    let &termwinsize = s:old_termwinsize
-    nnoremap <buffer> q :quit<CR>
-
-    if a:status == 0 && !RequiresRemote()
-        return v:false
-    endif
-
-    exec 'cgetbuffer '.s:term_buf
-
-    exec "bdelete ".s:term_buf
-
-    return v:true
-endfunction " }}}
 " s:HandleBuildResults:  {{{
-function! s:HandleBuildResults(status)
+function! s:HandleBuildResults(...)
     " Remember where we are when build is finished.
     let curpos = getcurpos()
     let curbuf = bufnr('%')
 
-    if has('nvim')
-        let hasErrs = s:HandleBuildResults_Nvim()
-    else
-        let hasErrs = s:HandleBuildResults_Vim(a:status)
-    endif
-
-    if !hasErrs
+    let fileContents = join(readfile(s:make_output_loc), "\n")
+    if fileContents !~? 'error'
         return
     endif
+
+    exec "cgetfile ".s:make_output_loc
+    exec "bdelete ".s:term_buf
 
     cwindow
     silent! crewind
@@ -435,14 +404,6 @@ function! s:HandleBuildResults(status)
 
     redraw!
 endfunction " }}}
-" s:Vim_OnExit: {{{
-function s:Vim_OnExit(job, status, ...)
-    call timer_start(500, {timer -> s:HandleBuildResults(a:status)})
-endfunction " }}}
-" s:Nvim_OnExit: {{{
-function! s:Nvim_OnExit(jobId, exitCode, eventType)
-    call s:HandleBuildResults(a:exitCode)
-endfunction " }}}
 " s:CompileCommon:  {{{
 " Description: 
 let s:term_buf = -1
@@ -456,38 +417,27 @@ function! s:CompileCommon(makeprg)
         let makeprg = RunOnServerCmd(a:makeprg)
     endif
 
-    if !has('nvim')
-        let s:old_termwinsize = &termwinsize
+    " Neovim wraps terminal lines, making parsing them error-prone if
+    " file-names are broken across multiple lines. Hence, we "tee" the
+    " output to a file which we can read later.
+    " Asking for better workarounds resulted in no luck:
+    "    https://neovim.discourse.group/t/is-there-something-like-termwinsize-for-neovim-with-termopen/2617
+    " This trick is not necessary for Vim, but it does no harm and avoids
+    " having to set 'termwinsize' and restore it.
+    " We change the log location to a "shared" location so that it works
+    " even with a remote compile.
+    let s:make_output_loc = mw#utils#GetRootDir() . '/.sbtools/vim_make.log'
+    let makeprg = makeprg . " 2>&1 | tee ".s:make_output_loc
 
-        " Vim allows us to set an arbitrary large width for the terminal
-        " window avoiding problems with file names etc. getting broken
-        " across lines.
-        let &termwinsize = '10*1000'
+    let s:term_job = mw#term#Start(makeprg, {
+                \ "bottom": v:true,
+                \ "cwd": cdPath, 
+                \ "term_name": "sbmake term",
+                \ "term_highlight": "Normal",
+                \ "exit_cb": function('s:HandleBuildResults')})
+    let s:term_buf = s:term_job['buffer']
 
-        bot let s:term_buf = term_start(makeprg, {
-                    \ "cwd": cdPath, 
-                    \ "term_name": "sbmake term",
-                    \ "term_highlight": "Normal",
-                    \ "exit_cb": function('s:Vim_OnExit')})
-    else
-        bot new
-        resize 10
-        setlocal buftype=nofile
-        setlocal nowrap
-        let s:term_buf = bufnr('%')
-
-        " Neovim wraps terminal lines, making parsing them error-prone if
-        " file-names are broken across multiple lines. Hence, we "tee" the
-        " output to a file which we can read later.
-        " Asking for better workarounds resulted in no luck:
-         "https://neovim.discourse.group/t/is-there-something-like-termwinsize-for-neovim-with-termopen/2617
-        let makeprg = makeprg . " 2>&1 | tee ".s:make_output_loc
-
-        let s:nvim_partial_data = ''
-        let s:nvim_jobid = termopen(makeprg, {
-            \ 'on_exit': function('s:Nvim_OnExit')
-            \ })
-    endif
+    resize 10
 endfunction " }}}
 " mw#sbtools#CompileProject: compiles the present flag {{{
 let s:term_job = {}
