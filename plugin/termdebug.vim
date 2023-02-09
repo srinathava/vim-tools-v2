@@ -238,14 +238,6 @@ func! s:CloseBuffers()
   unlet! s:gdbwin
 endfunc
 
-
-function! s:DispatchToOutFcn(FuncRefObj, chan_id, msgs, name)
-  call a:FuncRefObj(a:chan_id, join(a:msgs, ''))
-endfunction
-
-function! s:DoNothing(...)
-endfunction
-
 " TermDebugGdbCmd: return full gdb command {{{
 " Description: 
 function! TermDebugGdbCmd()
