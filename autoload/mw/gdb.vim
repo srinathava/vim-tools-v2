@@ -26,40 +26,36 @@ endfunction " }}}
 " Description:
 
 let s:customArgs = '-nodesktop -nosplash'
-function! mw#gdb#StartMATLABWithCustomCmdLineArgs(attach)
+function! mw#gdb#StartMATLABWithCustomCmdLineArgs()
     let cmdLineArgs = input('Enter custom command line args: ', s:customArgs)
     if cmdLineArgs == ''
         return
     endif
 
     let s:customArgs = cmdLineArgs
-    call mw#gdb#StartMATLAB(a:attach, s:customArgs)
+    call mw#gdb#StartMATLAB(s:customArgs)
 endfunction "}}}
 " s:OnOutput:  {{{
 " Description: 
-function! s:OnOutput(attach, chan, msg)
+function! s:OnOutput(chan, msg)
     let m = matchlist(a:msg, 'PID\s*=\s*\([0-9]\+\)')
     if !empty(m)
-        let pid = m[1]
-        if a:attach != 0
-            call mw#gdb#AttachToMATLAB(pid, a:mode)
-        else
-            let @m = pid
-            echomsg "Started MATLAB. Copied pid [".pid."] to register m. Use <C-r>m to use it"
-        endif
+        let @m = m[1]
+        echomsg "Started MATLAB. Copied pid [".@m."] to register m. Use <C-r>m to use it"
     endif
 endfunction " }}}
 " mw#gdb#StartMATLAB:  {{{
 " Description: 
-function! mw#gdb#StartMATLAB(attach, mode)
+function! mw#gdb#StartMATLAB(mode)
     let cmd = 'sb -skip-sb-startup-checks ' . a:mode
     if mw#remote#Required()
         let cmd = mw#remote#Wrap(cmd)
     end
     let showterm = a:mode =~ '-nodesktop' || a:mode =~ '-nojvm'
     call mw#term#Start(cmd, { 
-                \ 'out_cb' : function('s:OnOutput', [a:attach]),
-                \ 'hidden' : !showterm
+                \ 'out_cb' : function('s:OnOutput'),
+                \ 'hidden' : !showterm,
+                \ 'term_finish': 'close'
                 \ })
 endfunction " }}}
 " s:IssuePendingCommands: issues pending GDB commands {{{

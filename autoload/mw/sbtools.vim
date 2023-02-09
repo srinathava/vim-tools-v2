@@ -299,7 +299,7 @@ let g:MWDebug = 1
 function! s:GetProjectMakeProgram()
     let cdPath = s:GetModulePath()
     if mw#remote#Required()
-        "ppatil todo: also check if sbsyscheck==0
+        " ppatil todo: also check if sbsyscheck==0
         let distcc = ''
     else
         let distcc = '-distcc'

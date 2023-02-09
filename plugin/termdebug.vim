@@ -254,7 +254,6 @@ function! TermDebugGdbCmd()
         let sbrootDir = mw#utils#GetRootDir()
         let gdbStartCmd = 'sb -s '.sbrootDir.' -debug -no-debug-backing-stores -gdb-switches -quiet'
         if mw#remote#Required()
-            let gdbStartCmd = gdbStartCmd.' -gdb-switches -nx -gdb-switches -x=/mathworks/devel/sandbox/ebalai/sftools/gdb/.gdbinit_remote'
             let gdbStartCmd = "socat tcp-l:".s:lcm_portnumber.",reuseaddr pty,raw,link=".s:lcm_pseudo_tty."& ".gdbStartCmd
             let gdbStartCmd = mw#remote#Wrap(gdbStartCmd)
         endif
