@@ -104,8 +104,6 @@ if !exists('g:termdebug_reset_vars') || g:termdebug_reset_vars
   let s:asm_lines = []
   let s:asm_addr = ''
 
-  let s:lcm_version=''
-  let s:lcm_machine=''
   let s:lcm_portnumber = 50007
   let s:lcm_pseudo_tty = '/tmp/pseudotty'.s:lcm_portnumber
 
@@ -255,10 +253,10 @@ function! TermDebugGdbCmd()
     if mw_anchor_loc != ''
         let sbrootDir = mw#utils#GetRootDir()
         let gdbStartCmd = 'sb -s '.sbrootDir.' -debug -no-debug-backing-stores -gdb-switches -quiet'
-        if RequiresRemote()
+        if mw#remote#Required()
             let gdbStartCmd = gdbStartCmd.' -gdb-switches -nx -gdb-switches -x=/mathworks/devel/sandbox/ebalai/sftools/gdb/.gdbinit_remote'
             let gdbStartCmd = "socat tcp-l:".s:lcm_portnumber.",reuseaddr pty,raw,link=".s:lcm_pseudo_tty."& ".gdbStartCmd
-            let gdbStartCmd = [trim(RunOnServerCmd('')),gdbStartCmd]
+            let gdbStartCmd = mw#remote#Wrap(gdbStartCmd)
         endif
         return gdbStartCmd
     elseif executable('sbgdb')
@@ -337,8 +335,8 @@ func! s:HasGdbProcessExited()
 endfunc
 
 func! StartCommJob()
-  if RequiresRemote()
-    let commjobcmd="telnet ".s:lcm_machine." ".s:lcm_portnumber." "
+  if mw#remote#Required()
+    let commjobcmd="telnet ".mw#remote#Machine()." ".s:lcm_portnumber." "
   else
     let commjobcmd='NONE'
   endif
@@ -365,7 +363,7 @@ func! s:StartDebug_term_step2(dict)
     call mw#term#SendKeys(s:gdbjob, 'set args ' . join(proc_args) . "\r")
   endif
   call StartCommJob()
-  if RequiresRemote()
+  if mw#remote#Required()
       let gdbcommjobtty = s:lcm_pseudo_tty
       " new-ui command needs telnet from commjob to be ready.
       sleep 100m
@@ -373,49 +371,8 @@ func! s:StartDebug_term_step2(dict)
       let gdbcommjobtty = s:commjob['pty']
   endif
 
+  echomsg "sending new-ui mi command ".gdbcommjobtty
   call mw#term#SendKeys(s:gdbjob,'new-ui mi '.gdbcommjobtty."\r")
-  " Wait for the response to show up, users may not notice the error and wonder
-  " why the debugger doesn't work.
-  let try_count = 0
-  while 1
-    if s:HasGdbProcessExited()
-      echoerr string(g:termdebugger) . ' exited unexpectedly'
-      call s:CloseBuffers()
-      return
-    endif
-
-    let response = ''
-    for lnum in range(1,200)
-      let line1 = mw#term#GetLine(s:gdbjob, lnum)
-      let line2 = mw#term#GetLine(s:gdbjob, lnum + 1)
-      if line1 =~ 'new-ui mi '
-	" response can be in the same line or the next line
-	let response = line1 . line2
-	if response =~ 'Undefined command'
-	  echoerr 'Sorry, your gdb is too old, gdb 7.12 is required'
-	  call s:CloseBuffers()
-	  return
-	endif
-	if response =~ 'New UI allocated'
-	  " Success!
-	  break
-	endif
-      elseif line1 =~ 'Reading symbols from' && line2 !~ 'new-ui mi '
-	" Reading symbols might take a while, try more times
-	let try_count -= 1
-      endif
-    endfor
-    if response =~ 'New UI allocated'
-      break
-    endif
-    let try_count += 1
-    call s:Debug('try_count = '.try_count)
-    if try_count > 100
-      echoerr 'Cannot check if your gdb works, continuing anyway'
-      break
-    endif
-    sleep 10m
-  endwhile
 
   " Interpret commands while the target is running.  This should usually only be
   " exec-interrupt, since many commands don't work properly while the target is
@@ -666,11 +623,12 @@ func! s:LoadSharedLibraryContainingFile(filePath)
     call s:SendCommand('sb-auto-load-libs '.dllname)
     echo 'GDB finished loading debug symbols for '.dllname.'. Breakpoint turns red when and if MATLAB loads '.dllname.'.'
 endfunc
+
 " Handle a message received from gdb on the GDB/MI interface.
 func! s:CommOutput(chan, msg)
   let msgs = a:msg
   let lastMessageIndex = -2
-  if RequiresRemote()
+  if mw#remote#Required()
       let msgs = substitute(a:msg, '\^M\^J',"\r",'g')
       let lastMessageIndex = -1
   endif
@@ -1127,7 +1085,7 @@ endfunc
 function! s:IssueGenericStackListCmd(gdbcmd, stacktype)
   call s:SendCommand('echo --start--stack--'.a:stacktype)
   call s:SendCommand(a:gdbcmd)
-  if RequiresRemote()
+  if mw#remote#Required()
       sleep 100m
   endif
   call s:SendCommand('echo --end--stack--'.a:stacktype)
@@ -1832,18 +1790,6 @@ function! TermDebugSendCommandToComm(cmd)
   call s:SendCommand(a:cmd)
 endfunction " }}}
 
-function! RequiresRemote()
-    if $RUNONSERVER != 1
-        return 0
-    endif
-    if empty(s:lcm_version) 
-        let mw_anchor_loc = findfile('mw_anchor', '.;')
-        let s:lcm_version = split(readfile(mw_anchor_loc,'b')[0],'=')[1]
-        let s:lcm_machine = trim(system('getserverinfo'))
-    endif
-    return 1 
-endfunction
-
 function! GetTitleString()
     "titlestring format: filenameWithoutDirectoryPath [-+=] dirNameRelativeToSbroot : sbsName : hostNameIfRemote
     let modifierstatus = ''
@@ -1867,9 +1813,9 @@ function! GetTitleString()
         let sbrootDir = mw#utils#GetRootDir().'/'
         let sbsName = split(sbrootDir,'/')[-1]
         let dirNameRelativeToSbroot = substitute(dirName,sbrootDir,'','g')
-        let machineInfo = ''
-        if empty(s:lcm_machine) == 0
-            let machineInfo = ' : '. s:lcm_machine
+	let machineInfo = mw#remote#Machine()
+        if !empty(machineInfo)
+            let machineInfo = ' : '. machineInfo
         endif
         return fileName.' '.modifierstatus.' : '.dirNameRelativeToSbroot.' : '.sbsName.machineInfo
     else
@@ -1879,18 +1825,15 @@ endfunction
 
 
 if empty(&titlestring)
-    call RequiresRemote()
+    call mw#remote#Required()
     " todo ppatil: remove below if condition to set this custom status for
     " non-remote sessions as well
-    if empty(s:lcm_machine) == 0
+    if !empty(mw#remote#Machine())
         set titlestring=%{GetTitleString()}
     endif
 endif
 
-function! RunOnServerCmd(userCmd)
-   return "runonserver ".a:userCmd 
-endfunction
-
 let &cpo = s:keepcpo
 unlet s:keepcpo
+
 " vim: sw=2 ts=8 noet 

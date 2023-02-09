@@ -61,7 +61,7 @@ function! mw#term#Start(cmd, opts={})
                     \ 'in_io': 'pipe',
                     \ 'hidden': opts.hidden,
                     \ 'term_finish': opts.term_finish,
-                    \ 'curwin': v:true
+                    \ 'curwin': !opts.hidden
                     \ })
         if ptybuf == 0
             return {}

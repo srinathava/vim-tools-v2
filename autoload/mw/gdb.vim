@@ -35,37 +35,32 @@ function! mw#gdb#StartMATLABWithCustomCmdLineArgs(attach)
     let s:customArgs = cmdLineArgs
     call mw#gdb#StartMATLAB(a:attach, s:customArgs)
 endfunction "}}}
+" s:OnOutput:  {{{
+" Description: 
+function! s:OnOutput(attach, chan, msg)
+    let m = matchlist(a:msg, 'PID\s*=\s*\([0-9]\+\)')
+    if !empty(m)
+        let pid = m[1]
+        if a:attach != 0
+            call mw#gdb#AttachToMATLAB(pid, a:mode)
+        else
+            let @m = pid
+            echomsg "Started MATLAB. Copied pid [".pid."] to register m. Use <C-r>m to use it"
+        endif
+    endif
+endfunction " }}}
 " mw#gdb#StartMATLAB:  {{{
 " Description: 
-let s:python_path_inited = 0
-
 function! mw#gdb#StartMATLAB(attach, mode)
-
-    pythonx import sys, vim
-    if s:python_path_inited == 0
-        exec "pythonx sys.path += [r'".s:scriptDir."']"
-        pythonx from startMatlab import startMatlab
-        let s:python_path_inited = 1
-    endif
-
-    let pid = pyxeval('startMatlab(r""" '.a:mode.' """)')
-
-    if RequiresRemote()
-        echomsg "starting remote MATLAB; Use feature('getpid') in MATLAB to get pid to attach"
-        return
+    let cmd = 'sb -skip-sb-startup-checks ' . a:mode
+    if mw#remote#Required()
+        let cmd = mw#remote#Wrap(cmd)
     end
-    if pid == 0
-        echohl Search
-        echomsg 'Cannot find MATLAB process for some reason...'
-        echohl None
-        return
-    endif
-    let @m = pid
-    echomsg "Started MATLAB. Copied pid [".pid."] to register m. Use <C-r>m to use it"
-
-    if a:attach != 0
-        call mw#gdb#AttachToMATLAB(pid, a:mode)
-    endif
+    let showterm = a:mode =~ '-nodesktop' || a:mode =~ '-nojvm'
+    call mw#term#Start(cmd, { 
+                \ 'out_cb' : function('s:OnOutput', [a:attach]),
+                \ 'hidden' : !showterm
+                \ })
 endfunction " }}}
 " s:IssuePendingCommands: issues pending GDB commands {{{
 " Description: 

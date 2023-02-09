@@ -298,7 +298,7 @@ endfunction " }}}
 let g:MWDebug = 1
 function! s:GetProjectMakeProgram()
     let cdPath = s:GetModulePath()
-    if RequiresRemote()
+    if mw#remote#Required()
         "ppatil todo: also check if sbsyscheck==0
         let distcc = ''
     else
@@ -413,10 +413,6 @@ function! s:CompileCommon(makeprg)
     exec 'silent! bdelete '.s:term_buf
     let makeprg = a:makeprg 
 
-    if RequiresRemote()
-        let makeprg = RunOnServerCmd(a:makeprg)
-    endif
-
     " Neovim wraps terminal lines, making parsing them error-prone if
     " file-names are broken across multiple lines. Hence, we "tee" the
     " output to a file which we can read later.
@@ -429,6 +425,10 @@ function! s:CompileCommon(makeprg)
     let s:make_output_loc = mw#utils#GetRootDir() . '/.sbtools/vim_make.log'
     let makeprg = makeprg . " 2>&1 | tee ".s:make_output_loc
 
+    if mw#remote#Required()
+        let makeprg = mw#remote#Wrap(makeprg)
+    endif
+
     let s:term_job = mw#term#Start(makeprg, {
                 \ "bottom": v:true,
                 \ "cwd": cdPath, 
@@ -436,6 +436,10 @@ function! s:CompileCommon(makeprg)
                 \ "term_highlight": "Normal",
                 \ "exit_cb": function('s:HandleBuildResults')})
     let s:term_buf = s:term_job['buffer']
+
+    " We used to wait till compile is done to set up this mapping, but by
+    " then we might be in a completely different buffer.
+    nnoremap <buffer> q :quit<CR>
 
     resize 10
 endfunction " }}}
