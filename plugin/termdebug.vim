@@ -54,17 +54,16 @@ call s:InitDebugLogging()
 
 " Need either the +terminal feature or +channel and the prompt buffer.
 " The terminal feature does not work with gdb on win32.
-if (has('nvim') || has('terminal')) && !has('win32')
-    let s:way = 'terminal'
-else
-  if has('terminal')
-    let s:err = 'Cannot debug, missing prompt buffer support'
-  else
-    let s:err = 'Cannot debug, +channel feature is not supported'
-  endif
-  command -nargs=* -complete=file -bang Termdebug echoerr s:err
-  command -nargs=+ -complete=file -bang TermdebugCommand echoerr s:err
-  finish
+let supportsTerminalDebug = (has('nvim') || has('terminal')) && !has('win32')
+if supportsTerminalDebug == v:false
+    if has('terminal')
+        let s:err = 'Cannot debug, missing prompt buffer support'
+    else
+        let s:err = 'Cannot debug, +channel feature is not supported'
+    endif
+    command -nargs=* -complete=file -bang Termdebug echoerr s:err
+    command -nargs=+ -complete=file -bang TermdebugCommand echoerr s:err
+    finish
 endif
 
 let s:keepcpo = &cpo
@@ -208,9 +207,7 @@ func! s:StartDebug_internal(dict)
     let s:vertical = 0
   endif
 
-  let s:way = 'terminal'
 
-  call s:Debug('starting using '.s:way)
   call s:StartDebug_term(a:dict)
 
   if exists('g:termdebug_disasm_window')
