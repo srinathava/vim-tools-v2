@@ -117,7 +117,7 @@ amenu &Mathworks.&Load\ Saved\ Session          :call mw#sbtools#LoadSession()<C
 
 amenu &Mathworks.-sep5- <Nop>
 amenu &Mathworks.P&4V.&RealEdits                :call mw#perforce#RealEditsFile(expand('%:p'))<CR>
-amenu &Mathworks.Open\ Co&verage\ Repor         :MWOpenCoverageReport<CR>
+amenu &Mathworks.Open\ Co&verage\ Report         :MWOpenCoverageReport<CR>
 
 if has('nvim')
     nnoremap <A-m> :lua require('mw.telescope').commands()<CR>
