@@ -1777,49 +1777,6 @@ function! TermDebugSendCommandToComm(cmd)
   call s:SendCommand(a:cmd)
 endfunction " }}}
 
-function! GetTitleString()
-    "titlestring format: filenameWithoutDirectoryPath [-+=] dirNameRelativeToSbroot : sbsName : hostNameIfRemote
-    let modifierstatus = ''
-    if &modifiable == 0
-        let modifierstatus = '-'
-    elseif &readonly == 1 && empty(getbufinfo('%')) == 0 && getbufinfo('%')[0].changed == 1
-        let modifierstatus = '=+'
-    elseif &readonly == 1
-        let modifierstatus = '='
-    elseif empty(getbufinfo('%')) == 0 && getbufinfo('%')[0].changed == 1
-        let modifierstatus = '+'
-    endif
-
-    if !empty(modifierstatus)
-        let modifierstatus = '['.modifierstatus.']'
-    endif
-    let mw_anchor_loc = findfile('mw_anchor', '.;')
-    let fileName = expand('%:t')
-    let dirName = expand('%:p:h')
-    if mw_anchor_loc != ''
-        let sbrootDir = mw#utils#GetRootDir().'/'
-        let sbsName = split(sbrootDir,'/')[-1]
-        let dirNameRelativeToSbroot = substitute(dirName,sbrootDir,'','g')
-	let machineInfo = mw#remote#Machine()
-        if !empty(machineInfo)
-            let machineInfo = ' : '. machineInfo
-        endif
-        return fileName.' '.modifierstatus.' : '.dirNameRelativeToSbroot.' : '.sbsName.machineInfo
-    else
-        return fileName.' '.modifierstatus.' ('.dirName.')'
-    endif
-endfunction
-
-
-if empty(&titlestring)
-    call mw#remote#Required()
-    " todo ppatil: remove below if condition to set this custom status for
-    " non-remote sessions as well
-    if !empty(mw#remote#Machine())
-        set titlestring=%{GetTitleString()}
-    endif
-endif
-
 let &cpo = s:keepcpo
 unlet s:keepcpo
 
