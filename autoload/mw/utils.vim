@@ -1,4 +1,3 @@
-
 " ==============================================================================
 " Sandbox utility functions
 " ============================================================================== 
@@ -91,8 +90,7 @@ function! mw#utils#RestoreSettings()
         call setbufvar('%', '&'.g:MW_SavedSettings[i], g:MW_SavedSettingValues[i])
     endfor
 endfunction " }}}
-
-" ChooseFromList:  {{{
+" mw#utils#ChooseFromList:  {{{
 " Description: 
 function! mw#utils#ChooseFromList(origList, prefix)
     let idx = 1
@@ -108,7 +106,6 @@ function! mw#utils#ChooseFromList(origList, prefix)
         return a:origList[idxChoice - 1]
     end
 endfunction " }}}
-
 " mw#utils#AssertThatWeHaveAValidProject: ensure that there's a valid project {{{
 " Description: 
 function! mw#utils#AssertThatWeHaveAValidProject()
@@ -120,6 +117,5 @@ function! mw#utils#AssertThatWeHaveAValidProject()
         throw "ERROR: Invalid location"
     endif
 endfunction " }}}
-
 
 " vim: fdm=marker
