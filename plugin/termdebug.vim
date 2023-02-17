@@ -128,6 +128,7 @@ func! s:Debug(msg)
   let s:debug_log .= a:msg . "\n"
 endfunction
 command -nargs=0 TermLog :echo s:debug_log
+command -nargs=0 TermClearLog :let s:debug_log = ''
 
 " Take a breakpoint number as used by GDB and turn it into an integer.
 " The breakpoint may contain a dot: 123.4 -> 123004
@@ -299,7 +300,7 @@ endfunc
 
 func! s:OnGdbMainOutput(dict, chan, msg)
   if s:foundGdbPrompt
-      if a:msg =~ '(gdb)'
+      if a:msg =~# '(gdb)'
           " GDB command is finished executing.
           call s:MakeGDBCommandLineVisibleAndInTerminalMode(a:msg)
       endif
@@ -310,9 +311,9 @@ func! s:OnGdbMainOutput(dict, chan, msg)
   " a chance to turn off pagination. This can happen for instance if the
   " .gdbinit prints out a lot of messages and the Vim window is
   " sufficiently small.
-  if a:msg =~ '--Type <RET> for more, q to quit, c to continue without paging--'
+  if a:msg =~# '--Type <RET> for more, q to quit, c to continue without paging--'
     call mw#term#SendKeys(s:gdbjob, "c\r")
-  elseif a:msg =~ '(gdb)'
+  elseif a:msg =~# '(gdb)'
     let s:foundGdbPrompt = 1
     call s:StartDebug_term_step2(a:dict)
   endif
@@ -632,8 +633,7 @@ func! s:CommOutput(chan, msg)
   let pendingBreakpointInfoOutputPatternString = "breakpoint     keep y   <PENDING>  "
   " Do not process the last line of the message (hence the 0:-2). This
   " prevents us from processing incomplete lines.
-  for msg in msgs[0:lastMessageIndex]
-
+  for msg in msgs[0:-2]
     let msg = trim(msg)
     if msg == ''
       continue
@@ -1455,9 +1455,8 @@ function! s:OpenCursorPosition(fname, lnum)
     return
   endif
   call s:GotoSourcewinOrCreateIt()
-  if a:fname !~ @% 
-    exec 'drop '.fnameescape(a:fname)
-  elseif a:lnum <= line('w0') || a:lnum >= line('w$')
+  exec 'drop '.fnameescape(a:fname)
+  if a:lnum <= line('w0') || a:lnum >= line('w$')
       " redraw when a:fname is currently visible but a:lnum is not
       redraw
   endif
