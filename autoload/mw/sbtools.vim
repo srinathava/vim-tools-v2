@@ -423,7 +423,7 @@ function! s:CompileCommon(makeprg)
     " We change the log location to a "shared" location so that it works
     " even with a remote compile.
     let s:make_output_loc = mw#utils#GetRootDir() . '/.sbtools/vim_make.log'
-    let makeprg = makeprg . " 2>&1 | tee ".s:make_output_loc
+    let makeprg = "bash -c \"" .makeprg . "\" 2>&1 | tee ".s:make_output_loc
 
     if mw#remote#Required()
         let makeprg = mw#remote#Wrap(makeprg)
