@@ -24,6 +24,12 @@ function! TermdebugFilenameModifier(filepath)
         let mlroot = sbroot . '/matlab/'
         let filepath = filepath[strlen(mlroot):]
     endif
+
+    let gitroot = findfile('.git', filepath.';')
+    if gitroot != ''
+        let gitroot = fnamemodify(gitroot, ':p:h')
+        let filepath = filepath[strlen(gitroot):]
+    endif
     return fnameescape(filepath)
 endfunction " }}}
 

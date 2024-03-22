@@ -1262,8 +1262,9 @@ func! s:ProcessCStackInfo(msg)
   let lastknown = v:false
   let startpos = 0
   while 1
-    let frame = matchstr(a:msg, 'frame={.\{-\}},', startpos)
+    let frame = matchstr(a:msg, 'frame={.\{-\}}', startpos)
     if frame == ''
+      call s:Debug('ProcessCStackInfo: break')
       break
     endif
 
@@ -1272,6 +1273,7 @@ func! s:ProcessCStackInfo(msg)
     let fcnname = fcnname[0:min([50,len(fcnname)])]
     let fname = s:GetFullname(frame)
     let lnum = s:GetMiValue(frame, 'line') + 0
+    call s:Debug('ProcessCStackInfo: fname = '.fname.', lnum = '.lnum)
 
     if fname == '' || fcnname == '' || lnum <= 0
         if lastknown == v:true
@@ -1326,6 +1328,7 @@ func! s:HandleMOrHybridStackInfo()
 endfunc
 
 func! s:HandleCStackInfo(msg)
+  call s:Debug('HandleCStackInfo: msg = '.a:msg)
   let lines = s:ProcessCStackInfo(a:msg)
   keepalt call s:UpdateStackWindow(lines)
 endfunc
